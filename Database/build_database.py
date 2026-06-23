@@ -51,7 +51,8 @@ def map_column(col):
 
 def consolidate_leads(db_conn):
     source_folder = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Marketing e Pitch\Marketing\leads_facebook"
-    csv_out_path = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Octo\lead-analytics\Database\leads_consolidated.csv"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_out_path = os.path.join(script_dir, "leads_consolidated.csv")
     
     print("\n--- Processing Facebook Leads ---")
     
@@ -140,7 +141,8 @@ def consolidate_leads(db_conn):
 
 def consolidate_calls(db_conn):
     source_folder = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Marketing e Pitch\analise PitchYEs\chamadas_pitchyes"
-    csv_out_path = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Octo\lead-analytics\Database\chamadas_consolidated.csv"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_out_path = os.path.join(script_dir, "chamadas_consolidated.csv")
     
     print("\n--- Processing PitchYes Calls ---")
     
@@ -408,7 +410,8 @@ def create_views(db_conn):
     print("Analytical views and indexes created successfully.")
 
 def main():
-    db_path = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Octo\lead-analytics\Database\leads.db"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(script_dir, "leads.db")
     
     print("====================================================")
     print("Starting Consolidated Marketing & Sales Database Build")

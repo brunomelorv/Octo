@@ -22,17 +22,19 @@ async def get_kpis(current_user: UserResponse = Depends(get_current_user)):
 async def list_leads(
     status: str | None = Query(None),
     campanha_id: str | None = Query(None),
+    search: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     current_user: UserResponse = Depends(get_current_user)
 ):
     """
-    Lists leads with optional pagination and filters.
+    Lists leads with optional pagination, filters, and search query.
     """
     try:
         return await leads_service.get_leads(
             status=status,
             campanha_id=campanha_id,
+            search=search,
             page=page,
             page_size=page_size
         )
@@ -40,6 +42,19 @@ async def list_leads(
         raise HTTPException(
             status_code=500,
             detail=f"Erro ao listar leads: {str(e)}"
+        )
+
+@router.get("/dashboard-data")
+async def get_dashboard_data(current_user: UserResponse = Depends(get_current_user)):
+    """
+    Returns the complete aggregated analytical dashboard data from the database.
+    """
+    try:
+        return await leads_service.get_dashboard_data()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao obter dados do dashboard: {str(e)}"
         )
 
 @router.get("/{phone}")
@@ -65,3 +80,5 @@ async def get_lead_by_phone(
             status_code=500,
             detail=f"Erro ao obter lead: {str(e)}"
         )
+
+

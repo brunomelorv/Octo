@@ -12,6 +12,8 @@ export default function Header() {
         return 'Controle de Leads'
       case '/campanhas':
         return 'Campanhas de Marketing'
+      case '/negocios':
+        return 'Funil de Negócios'
       default:
         return 'Dashboard'
     }

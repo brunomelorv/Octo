@@ -22,6 +22,8 @@ async def query(sql: str, params: tuple = ()) -> list[dict]:
     db = await get_db()
     try:
         async with db.execute(sql, params) as cursor:
-            return await cursor.fetchall()
+            res = await cursor.fetchall()
+            await db.commit()
+            return res
     finally:
         await db.close()

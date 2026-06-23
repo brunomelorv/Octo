@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import LeadsPage from './pages/LeadsPage'
 import CampanhasPage from './pages/CampanhasPage'
+import NegociosPage from './pages/NegociosPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 function RootRedirect() {
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/leads" element={<LeadsPage />} />
         <Route path="/campanhas" element={<CampanhasPage />} />
+        <Route path="/negocios" element={<NegociosPage />} />
       </Route>
 
       {/* Fallback 404 Route */}
