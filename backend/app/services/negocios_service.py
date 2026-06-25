@@ -67,12 +67,16 @@ async def get_negocios(campaign_id=None, search=None) -> list[dict]:
         # Determine stage (etapa)
         if not item.get("etapa"):
             status_chamada = item["status_chamada"]
-            if status_chamada in ("Agendou Reunião", "Lead Qualificado"):
-                item["etapa"] = "Aceito (WhatsApp/Reunião)"
+            if status_chamada == "Agendou Reunião":
+                item["etapa"] = "Reunião Agendada"
+            elif status_chamada == "Lead Qualificado":
+                item["etapa"] = "Qualificado"
+            elif status_chamada in ("Caixa Postal / Não Atendido",):
+                item["etapa"] = "Sem Contato"
             elif status_chamada != "Sem Ligação":
-                item["etapa"] = "CONTATADO"
+                item["etapa"] = "Contatado"
             else:
-                item["etapa"] = "NOVO"
+                item["etapa"] = "Novo"
                 
         if item.get("valor") is None:
             item["valor"] = 0.0
@@ -104,7 +108,7 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
     else:
         # Determine dynamic previous stage for history accuracy
         phone = lead.get("phone")
-        etapa_anterior = "NOVO"
+        etapa_anterior = "Novo"
         if phone:
             call_rows = await query(
                 "SELECT * FROM chamadas WHERE telefone_normalizado = ? ORDER BY data_hora DESC LIMIT 1",
@@ -112,10 +116,14 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
             )
             if call_rows:
                 classif, _, _ = leads_service.classify_call_dynamic(dict(call_rows[0]))
-                if classif in ("Agendou Reunião", "Lead Qualificado"):
-                    etapa_anterior = "Aceito (WhatsApp/Reunião)"
+                if classif == "Agendou Reunião":
+                    etapa_anterior = "Reunião Agendada"
+                elif classif == "Lead Qualificado":
+                    etapa_anterior = "Qualificado"
+                elif classif in ("Caixa Postal / Não Atendido",):
+                    etapa_anterior = "Sem Contato"
                 elif classif != "Sem Ligação":
-                    etapa_anterior = "CONTATADO"
+                    etapa_anterior = "Contatado"
                     
         await query(
             "INSERT INTO negocios (lead_id, etapa, valor, updated_at, usuario_email, usuario_nome) VALUES (?, ?, ?, ?, ?, ?)",

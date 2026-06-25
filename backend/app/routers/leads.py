@@ -1,7 +1,11 @@
+import re
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.routers.auth import get_current_user
 from app.models.user import UserResponse
 import app.services.leads_service as leads_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -13,10 +17,8 @@ async def get_kpis(current_user: UserResponse = Depends(get_current_user)):
     try:
         return await leads_service.get_kpis()
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao obter KPIs: {str(e)}"
-        )
+        logger.exception("Erro ao obter KPIs")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 @router.get("/")
 async def list_leads(
@@ -39,10 +41,8 @@ async def list_leads(
             page_size=page_size
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao listar leads: {str(e)}"
-        )
+        logger.exception("Erro ao listar leads")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 @router.get("/dashboard-data")
 async def get_dashboard_data(current_user: UserResponse = Depends(get_current_user)):
@@ -52,10 +52,9 @@ async def get_dashboard_data(current_user: UserResponse = Depends(get_current_us
     try:
         return await leads_service.get_dashboard_data()
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao obter dados do dashboard: {str(e)}"
-        )
+        logger.exception("Erro ao obter dados do dashboard")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
 
 @router.get("/{phone}")
 async def get_lead_by_phone(
@@ -65,6 +64,11 @@ async def get_lead_by_phone(
     """
     Retrieves detailed info of a lead and its calls history using phone number.
     """
+    if not re.match(r'^\+?\d{8,15}$', phone):
+        raise HTTPException(
+            status_code=400,
+            detail="Formato de telefone inválido"
+        )
     try:
         lead = await leads_service.get_lead_by_phone(phone)
         if not lead:
@@ -76,9 +80,7 @@ async def get_lead_by_phone(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao obter lead: {str(e)}"
-        )
+        logger.exception("Erro ao obter lead")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 

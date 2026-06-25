@@ -1,8 +1,11 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from app.routers.auth import get_current_user
 from app.models.user import UserResponse
 import app.services.negocios_service as negocios_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -22,10 +25,8 @@ async def list_negocios(
     try:
         return await negocios_service.get_negocios(campaign_id=campaign_id, search=search)
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao listar negócios: {str(e)}"
-        )
+        logger.exception("Erro ao listar negócios")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 @router.put("/{lead_id}")
 async def update_negocio(
@@ -53,7 +54,5 @@ async def update_negocio(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao atualizar negócio: {str(e)}"
-        )
+        logger.exception("Erro ao atualizar negócio")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")

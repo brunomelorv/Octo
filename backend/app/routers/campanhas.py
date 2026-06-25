@@ -1,7 +1,10 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from app.routers.auth import get_current_user
 from app.models.user import UserResponse
 import app.services.campanhas_service as campanhas_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -13,7 +16,5 @@ async def list_campanhas(current_user: UserResponse = Depends(get_current_user))
     try:
         return await campanhas_service.get_campanhas()
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao obter campanhas: {str(e)}"
-        )
+        logger.exception("Erro ao obter campanhas")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")

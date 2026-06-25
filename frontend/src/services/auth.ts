@@ -12,6 +12,14 @@ export const authService = {
     return response.data
   },
 
+  async changePassword(currentPassword: string, newPassword: string) {
+    const response = await api.post('/auth/me/password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    })
+    return response.data
+  },
+
   logout() {
     useAuthStore.getState().logout()
   },

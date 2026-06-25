@@ -1,8 +1,19 @@
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { NavLink } from 'react-router-dom'
+import { KeyRound, LogOut, ShieldAlert, X } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
+import { authService } from '../../services/auth'
 
 export default function Sidebar() {
   const { user, logout } = useAuth()
+  const [passwordOpen, setPasswordOpen] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null)
+  const [savingPassword, setSavingPassword] = useState(false)
 
   const navItems = [
     {
@@ -41,7 +52,54 @@ export default function Sidebar() {
         </svg>
       ),
     },
+    {
+      name: 'Usuarios',
+      path: '/usuarios',
+      adminOnly: true,
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a4 4 0 11-8 0 4 4 0 018 0zM5 21a7 7 0 0114 0M19 8v6m3-3h-6" />
+        </svg>
+      ),
+    },
   ]
+
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || user?.role === 'admin')
+
+  const closePasswordModal = () => {
+    setPasswordOpen(false)
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setPasswordError(null)
+    setPasswordSuccess(null)
+    setSavingPassword(false)
+  }
+
+  const handlePasswordSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    setPasswordError(null)
+    setPasswordSuccess(null)
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('A nova senha e a confirmacao nao conferem.')
+      return
+    }
+
+    setSavingPassword(true)
+    try {
+      await authService.changePassword(currentPassword, newPassword)
+      setPasswordSuccess('Senha atualizada com sucesso.')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setTimeout(() => closePasswordModal(), 900)
+    } catch (err: any) {
+      setPasswordError(err?.response?.data?.detail || 'Nao foi possivel alterar a senha.')
+    } finally {
+      setSavingPassword(false)
+    }
+  }
 
   return (
     <aside className="w-[240px] flex-shrink-0 bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] flex flex-col h-full select-none border-r border-gray-800">
@@ -57,7 +115,7 @@ export default function Sidebar() {
 
       {/* Nav menu links */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <NavLink
             key={item.name}
             to={item.path}
@@ -88,15 +146,111 @@ export default function Sidebar() {
         </div>
 
         <button
+          onClick={() => setPasswordOpen(true)}
+          className="flex items-center justify-center gap-2 w-full py-2 bg-gray-800/40 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-semibold border border-gray-700/50 transition duration-150"
+        >
+          <KeyRound className="h-4 w-4" />
+          Trocar senha
+        </button>
+
+        <button
           onClick={logout}
           className="flex items-center justify-center gap-2 w-full py-2 bg-gray-800/40 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-semibold border border-gray-700/50 transition duration-150"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
+          <LogOut className="h-4 w-4" />
           Sair da Conta
         </button>
       </div>
+
+      {passwordOpen && (
+        <div className="fixed inset-0 z-[60]">
+          <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={closePasswordModal} />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-md bg-[var(--card-bg)] text-[var(--text)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden">
+              <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5 text-indigo-600" />
+                  <div>
+                    <h3 className="text-sm font-bold">Trocar senha</h3>
+                    <p className="text-xs text-slate-500">Atualize a senha da sua conta.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={closePasswordModal}
+                  className="p-1.5 rounded-lg border border-[var(--border)] hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handlePasswordSubmit} className="p-4 space-y-3">
+                {passwordError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    {passwordError}
+                  </div>
+                )}
+                {passwordSuccess && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                    {passwordSuccess}
+                  </div>
+                )}
+
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-500">Senha atual</span>
+                  <input
+                    type="password"
+                    required
+                    value={currentPassword}
+                    onChange={(event) => setCurrentPassword(event.target.value)}
+                    className="mt-1 w-full px-3 py-2 border border-[var(--border)] dark:bg-slate-900 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-500">Nova senha</span>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    className="mt-1 w-full px-3 py-2 border border-[var(--border)] dark:bg-slate-900 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-500">Confirmar nova senha</span>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    className="mt-1 w-full px-3 py-2 border border-[var(--border)] dark:bg-slate-900 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </label>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={closePasswordModal}
+                    className="flex-1 px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-semibold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingPassword}
+                    className="flex-1 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-60"
+                  >
+                    {savingPassword ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   )
 }

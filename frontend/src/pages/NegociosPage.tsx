@@ -31,10 +31,12 @@ import {
 
 // Constants for Kanban Stages
 const COLUMNS = [
-  { id: 'NOVO', name: 'NOVO', color: 'border-t-sky-500 dark:border-t-sky-400 bg-sky-50/20 dark:bg-sky-950/5 text-sky-700 dark:text-sky-400' },
-  { id: 'CONTATADO', name: 'CONTATADO', color: 'border-t-amber-500 dark:border-t-amber-400 bg-amber-50/20 dark:bg-amber-950/5 text-amber-700 dark:text-amber-400' },
-  { id: 'Aceito (WhatsApp/Reunião)', name: 'Aceito (WhatsApp/Reunião)', color: 'border-t-indigo-500 dark:border-t-indigo-400 bg-indigo-50/20 dark:bg-indigo-950/5 text-indigo-700 dark:text-indigo-400' },
-  { id: 'Pré-contrato', name: 'Pré-contrato', color: 'border-t-pink-500 dark:border-t-pink-400 bg-pink-50/20 dark:bg-pink-950/5 text-pink-700 dark:text-pink-400' },
+  { id: 'Novo', name: 'Novo', color: 'border-t-sky-500 dark:border-t-sky-400 bg-sky-50/20 dark:bg-sky-950/5 text-sky-700 dark:text-sky-400' },
+  { id: 'Sem Contato', name: 'Sem Contato', color: 'border-t-slate-400 dark:border-t-slate-500 bg-slate-50/20 dark:bg-slate-950/5 text-slate-600 dark:text-slate-400' },
+  { id: 'Contatado', name: 'Contatado', color: 'border-t-amber-500 dark:border-t-amber-400 bg-amber-50/20 dark:bg-amber-950/5 text-amber-700 dark:text-amber-400' },
+  { id: 'Qualificado', name: 'Qualificado', color: 'border-t-indigo-500 dark:border-t-indigo-400 bg-indigo-50/20 dark:bg-indigo-950/5 text-indigo-700 dark:text-indigo-400' },
+  { id: 'Reunião Agendada', name: 'Reunião Agendada', color: 'border-t-violet-500 dark:border-t-violet-400 bg-violet-50/20 dark:bg-violet-950/5 text-violet-700 dark:text-violet-400' },
+  { id: 'KYC/COF/Contrato', name: 'KYC/COF/Contrato', color: 'border-t-pink-500 dark:border-t-pink-400 bg-pink-50/20 dark:bg-pink-950/5 text-pink-700 dark:text-pink-400' },
   { id: 'Ganho', name: 'Ganho', color: 'border-t-emerald-500 dark:border-t-emerald-400 bg-emerald-50/20 dark:bg-emerald-950/5 text-emerald-700 dark:text-emerald-400' },
   { id: 'Perdido', name: 'Perdido', color: 'border-t-red-500 dark:border-t-red-400 bg-red-50/20 dark:bg-red-950/5 text-red-700 dark:text-red-400' }
 ]
@@ -372,7 +374,7 @@ export default function NegociosPage() {
         groups[d.etapa].push(d)
       } else {
         // Fallback to NOVO if stage is unrecognized
-        groups['NOVO'].push(d)
+        groups['Novo'].push(d)
       }
     })
     return groups

@@ -1,7 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.routers.auth import router as auth_router
 from app.routers.campanhas import router as campanhas_router
@@ -21,6 +25,9 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up Lead Analytics API...")
     try:
         from app.services.database import query
+        from app.services.auth_service import init_users_table_and_migrate
+        await init_users_table_and_migrate()
+
         await query("""
         CREATE TABLE IF NOT EXISTS negocios (
             lead_id TEXT PRIMARY KEY,
@@ -68,8 +75,19 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Muitas tentativas. Tente novamente em alguns minutos."},
+    )
+
 # CORS configurations
-origins = [
+_default_origins = [
     "http://localhost:3000",
     "http://localhost:5500",
     "http://localhost:5173",
@@ -78,13 +96,39 @@ origins = [
     "http://127.0.0.1:5173",
 ]
 
+import os
+_env_origins = os.getenv("CORS_ORIGINS")
+origins = [o.strip() for o in _env_origins.split(",") if o.strip()] if _env_origins else _default_origins
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+# Security headers middleware (M4 — mitigates XSS to protect localStorage tokens)
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data:; "
+            "connect-src 'self'"
+        )
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Health check router
 health_router = APIRouter()
