@@ -93,6 +93,11 @@ export interface AggregatedDashboardData {
     media: string
     mediana: string
   }
+  leadTime: {
+    media: string
+    mediana: string
+    totalLeadsComChamada: number
+  }
   scores: Record<string, number>
   leadsPorDia: Record<string, number>
   ligacoesPorDia: Record<string, number>
@@ -108,6 +113,25 @@ export function formatDuration(seconds: number | null): string {
   const s = Math.round(seconds % 60)
   if (m > 0) return `${m}m ${s}s`
   return `${s}s`
+}
+
+// Helper to format lead time (larger durations: hours/days)
+export function formatLeadTime(seconds: number): string {
+  if (seconds <= 0) return '0h'
+  const minutes = seconds / 60
+  const hours = minutes / 60
+  const days = hours / 24
+  if (days >= 1) {
+    const remainingHours = Math.floor(hours % 24)
+    if (remainingHours > 0) return `${Math.floor(days)}d ${remainingHours}h`
+    return `${Math.floor(days)}d`
+  }
+  if (hours >= 1) {
+    const remainingMin = Math.floor(minutes % 60)
+    if (remainingMin > 0) return `${Math.floor(hours)}h ${remainingMin}min`
+    return `${Math.floor(hours)}h`
+  }
+  return `${Math.floor(minutes)}min`
 }
 
 // Helper to calculate median
@@ -129,10 +153,23 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
   const campaignsDetails: Record<string, CampaignStats> = {}
   const leadsByDay: Record<string, number> = {}
   const durations: number[] = []
+  const leadTimeDeltas: number[] = [] // seconds between lead creation and first call
   
   const scoreCounts: Record<string, number> = {
     '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0, '8': 0
   }
+
+  // Build a map of phone -> earliest call date for lead time computation
+  const earliestCallByPhone: Record<string, string> = {}
+  calls.forEach((call) => {
+    const phone = call['Tel Meta']
+    const callDateTime = call['Data e Hora']
+    if (phone && callDateTime) {
+      if (!earliestCallByPhone[phone] || callDateTime < earliestCallByPhone[phone]) {
+        earliestCallByPhone[phone] = callDateTime
+      }
+    }
+  })
 
   const funnel = {
     total: 0,
@@ -196,6 +233,25 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
 
     const retorno = lead['houve retornow']
     if (retorno === 'Positivo') contatos++
+
+    // Lead time calculation
+    const phone = lead.phone
+    if (phone && criaVal && earliestCallByPhone[phone]) {
+      try {
+        // criaVal is YYYY-MM-DD from backend's parse_date_to_iso
+        const leadCreatedDate = new Date(criaVal + 'T00:00:00')
+        const firstCallDateStr = earliestCallByPhone[phone]
+        // Replace space with T for proper ISO parsing (e.g., '2026-06-25 11:14:50' -> '2026-06-25T11:14:50')
+        const normalizedCallDate = firstCallDateStr.replace(' ', 'T')
+        const firstCallDate = new Date(normalizedCallDate.includes('T') ? normalizedCallDate : normalizedCallDate + 'T00:00:00')
+        if (!isNaN(leadCreatedDate.getTime()) && !isNaN(firstCallDate.getTime()) && firstCallDate >= leadCreatedDate) {
+          const deltaSeconds = (firstCallDate.getTime() - leadCreatedDate.getTime()) / 1000
+          leadTimeDeltas.push(deltaSeconds)
+        }
+      } catch {
+        // skip leads where dates can't be parsed
+      }
+    }
 
     const classif = lead['Chamada - Classificação']
     const subcat = lead['Chamada - Subcategoria do Motivo']
@@ -333,6 +389,10 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
   const durMediaNum = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : 0
   const durMedianaNum = durations.length > 0 ? getMedian(durations) : 0
 
+  // Lead time stats
+  const leadTimeMediaNum = leadTimeDeltas.length > 0 ? leadTimeDeltas.reduce((a, b) => a + b, 0) / leadTimeDeltas.length : 0
+  const leadTimeMedianaNum = leadTimeDeltas.length > 0 ? getMedian(leadTimeDeltas) : 0
+
   return {
     totalLeads,
     contatos,
@@ -345,6 +405,11 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
     duracao: {
       media: formatDuration(durMediaNum),
       mediana: formatDuration(durMedianaNum)
+    },
+    leadTime: {
+      media: formatLeadTime(leadTimeMediaNum),
+      mediana: formatLeadTime(leadTimeMedianaNum),
+      totalLeadsComChamada: leadTimeDeltas.length
     },
     scores: scoreCounts,
     leadsPorDia: leadsByDay,

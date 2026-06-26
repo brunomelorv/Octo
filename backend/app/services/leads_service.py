@@ -296,6 +296,7 @@ async def get_dashboard_data() -> dict:
     
     houve_retorno_pos = 0
     leads_raw = []
+    lead_time_deltas = []  # seconds between lead creation and first call
     
     for lead in leads:
         camp = lead.get("campaign_name")
@@ -327,6 +328,34 @@ async def get_dashboard_data() -> dict:
             resumo = latest_call.get("resumo_ligacao")
             link_gravacao = latest_call.get("link_gravacao")
             retorno = "Positivo" if classif not in ("Sem Ligação", "Caixa Postal / Não Atendido") else "Negativo"
+            
+            # Lead time: difference between lead creation and FIRST call
+            if cria:
+                try:
+                    earliest_call = min(lead_calls, key=lambda x: x.get("data_hora") or "")
+                    earliest_call_dt_str = earliest_call.get("data_hora")
+                    if earliest_call_dt_str:
+                        # Parse lead creation date (strip timezone to get naive datetime)
+                        cria_str = str(cria).strip()
+                        lead_created_dt = None
+                        if 'T' in cria_str:
+                            # Remove timezone offset (e.g. -03:00 or +00:00) to get naive datetime
+                            clean = re.sub(r'[+-]\d{2}:\d{2}$', '', cria_str).replace('Z', '')
+                            lead_created_dt = datetime.fromisoformat(clean)
+                        elif re.match(r'^\d{4}-\d{2}-\d{2}', cria_str):
+                            lead_created_dt = datetime.strptime(cria_str[:19], '%Y-%m-%d %H:%M:%S') if len(cria_str) >= 19 else datetime.strptime(cria_str[:10], '%Y-%m-%d')
+                        
+                        # Parse first call datetime (already naive: '2026-06-25 11:14:50')
+                        call_dt_str = str(earliest_call_dt_str).strip()
+                        call_dt = None
+                        if re.match(r'^\d{4}-\d{2}-\d{2}', call_dt_str):
+                            call_dt = datetime.strptime(call_dt_str[:19], '%Y-%m-%d %H:%M:%S') if len(call_dt_str) >= 19 else datetime.strptime(call_dt_str[:10], '%Y-%m-%d')
+                        
+                        if lead_created_dt and call_dt and call_dt >= lead_created_dt:
+                            delta_seconds = (call_dt - lead_created_dt).total_seconds()
+                            lead_time_deltas.append(delta_seconds)
+                except Exception:
+                    pass  # skip leads where dates can't be parsed
             
         # Campanha
         if camp:
@@ -531,6 +560,29 @@ async def get_dashboard_data() -> dict:
     dur_media = format_duration(statistics.mean(durations)) if durations else "0s"
     dur_mediana = format_duration(statistics.median(durations)) if durations else "0s"
     
+    # Lead time statistics
+    lead_time_media_sec = statistics.mean(lead_time_deltas) if lead_time_deltas else 0
+    lead_time_mediana_sec = statistics.median(lead_time_deltas) if lead_time_deltas else 0
+    
+    def format_lead_time(seconds):
+        """Format lead time into human-readable string (hours/days)."""
+        if seconds <= 0:
+            return "0h"
+        minutes = seconds / 60
+        hours = minutes / 60
+        days = hours / 24
+        if days >= 1:
+            remaining_hours = int(hours % 24)
+            if remaining_hours > 0:
+                return f"{int(days)}d {remaining_hours}h"
+            return f"{int(days)}d"
+        if hours >= 1:
+            remaining_min = int(minutes % 60)
+            if remaining_min > 0:
+                return f"{int(hours)}h {remaining_min}min"
+            return f"{int(hours)}h"
+        return f"{int(minutes)}min"
+    
     return {
         "totalLeads": total_leads,
         "contatos": houve_retorno_pos,
@@ -544,6 +596,13 @@ async def get_dashboard_data() -> dict:
         "duracao": {
             "media": dur_media,
             "mediana": dur_mediana
+        },
+        "leadTime": {
+            "mediaSeconds": lead_time_media_sec,
+            "medianaSeconds": lead_time_mediana_sec,
+            "media": format_lead_time(lead_time_media_sec),
+            "mediana": format_lead_time(lead_time_mediana_sec),
+            "totalLeadsComChamada": len(lead_time_deltas)
         },
         "scores": score_counts,
         "leadsPorDia": {k: leads_by_day[k] for k in sorted(leads_by_day.keys())},

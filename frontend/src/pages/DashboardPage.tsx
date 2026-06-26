@@ -16,6 +16,7 @@ import {
   Award,
   Target,
   Play,
+  Clock,
 } from 'lucide-react'
 import {
   Chart as ChartJS,
@@ -55,6 +56,8 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'geral' | 'nao-atenderam' | 'analise-ligacoes'>('geral')
   const [selectedCampaign, setSelectedCampaign] = useState<string>('all')
   const [dateFilter, setDateFilter] = useState<string>('all')
+  const [customDateStart, setCustomDateStart] = useState<string>('')
+  const [customDateEnd, setCustomDateEnd] = useState<string>('')
 
   // Search & filter state for hot calls table
   const [hotSearchQuery, setHotSearchQuery] = useState('')
@@ -131,13 +134,29 @@ export default function DashboardPage() {
       endOfWeek.setHours(23, 59, 59, 999)
       return { start, end: endOfWeek }
     }
+    if (dateFilter === 'semana_retrasada') {
+      const day = start.getDay()
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1) - 14
+      start.setDate(diff)
+      const endOfWeek = new Date(start)
+      endOfWeek.setDate(start.getDate() + 6)
+      endOfWeek.setHours(23, 59, 59, 999)
+      return { start, end: endOfWeek }
+    }
     if (dateFilter === 'esse_mes') {
       start.setDate(1)
       return { start, end }
     }
+    if (dateFilter === 'personalizado' && customDateStart && customDateEnd) {
+      const s = new Date(customDateStart + 'T00:00:00')
+      const e = new Date(customDateEnd + 'T23:59:59.999')
+      if (!isNaN(s.getTime()) && !isNaN(e.getTime()) && s <= e) {
+        return { start: s, end: e }
+      }
+    }
 
     return null
-  }, [dateFilter, referenceDate])
+  }, [dateFilter, referenceDate, customDateStart, customDateEnd])
 
   // 3. Filter leads & calls locally
   const filteredLeads = useMemo(() => {
@@ -365,14 +384,16 @@ export default function DashboardPage() {
               <Calendar className="w-3.5 h-3.5 stroke-[1.5]" />
               Filtrar por Período
             </span>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 items-center">
               {[
                 { label: 'Tudo', value: 'all' },
                 { label: 'Hoje', value: 'hoje' },
                 { label: 'Ontem', value: 'ontem' },
                 { label: 'Esta Semana', value: 'essa_semana' },
                 { label: 'Semana Passada', value: 'semana_passada' },
+                { label: 'Semana Retrasada', value: 'semana_retrasada' },
                 { label: 'Este Mês', value: 'esse_mes' },
+                { label: 'Personalizado', value: 'personalizado' },
               ].map((btn) => (
                 <button
                   key={btn.value}
@@ -386,6 +407,23 @@ export default function DashboardPage() {
                   {btn.label}
                 </button>
               ))}
+              {dateFilter === 'personalizado' && (
+                <div className="flex items-center gap-1.5 ml-1">
+                  <input
+                    type="date"
+                    value={customDateStart}
+                    onChange={(e) => setCustomDateStart(e.target.value)}
+                    className="h-7 px-2 bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
+                  />
+                  <span className="text-xs text-[var(--text-secondary)]">até</span>
+                  <input
+                    type="date"
+                    value={customDateEnd}
+                    onChange={(e) => setCustomDateEnd(e.target.value)}
+                    className="h-7 px-2 bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -419,7 +457,7 @@ export default function DashboardPage() {
       {activeTab === 'geral' && (
         <div className="space-y-4">
           {/* General KPIs Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">
               <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Total de Leads</p>
               <div className="flex items-baseline gap-1.5 mt-1.5">
@@ -458,6 +496,18 @@ export default function DashboardPage() {
                 <span className="text-xs text-[var(--text-secondary)]">de contatos úteis</span>
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1">Conversão SDR pós-atendimento</p>
+            </div>
+
+            <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">
+              <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)] flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 stroke-[1.5]" />
+                Lead Time Médio
+              </p>
+              <div className="flex items-baseline gap-1.5 mt-1.5">
+                <span className="text-2xl font-semibold text-[var(--text-primary)]">{dashboardData.leadTime.media}</span>
+                <span className="text-xs text-[var(--text-secondary)]">(mediana: {dashboardData.leadTime.mediana})</span>
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">Tempo médio até o 1º atendimento ({dashboardData.leadTime.totalLeadsComChamada} leads)</p>
             </div>
           </div>
 
