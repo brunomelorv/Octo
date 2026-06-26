@@ -28,6 +28,19 @@ async def list_negocios(
         logger.exception("Erro ao listar negócios")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
+@router.get("/historico")
+async def list_negocios_historico(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Lists audit logs/history of deal stage and value changes.
+    """
+    try:
+        return await negocios_service.get_negocios_historico()
+    except Exception as e:
+        logger.exception("Erro ao listar histórico de negócios")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
 @router.put("/{lead_id}")
 async def update_negocio(
     lead_id: str,

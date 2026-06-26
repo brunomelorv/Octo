@@ -25,4 +25,9 @@ export const negociosService = {
     const response = await api.put(`/negocios/${leadId}`, data)
     return response.data
   },
+
+  async getNegociosHistorico(): Promise<any[]> {
+    const response = await api.get('/negocios/historico')
+    return response.data
+  },
 }

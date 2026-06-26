@@ -84,3 +84,4 @@ async def get_lead_by_phone(
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 
+

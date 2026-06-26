@@ -553,3 +553,4 @@ async def get_dashboard_data() -> dict:
         "allLeads": leads_raw,
         "allCalls": calls_raw
     }
+

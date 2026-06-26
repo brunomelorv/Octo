@@ -7,8 +7,9 @@ import Layout from './components/layout/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import LeadsPage from './pages/LeadsPage'
-import CampanhasPage from './pages/CampanhasPage'
+import PerformancePage from './pages/PerformancePage'
 import NegociosPage from './pages/NegociosPage'
+import UsuariosPage from './pages/UsuariosPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 function RootRedirect() {
@@ -51,8 +52,9 @@ export default function App() {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/leads" element={<LeadsPage />} />
-        <Route path="/campanhas" element={<CampanhasPage />} />
+        <Route path="/performance" element={<PerformancePage />} />
         <Route path="/negocios" element={<NegociosPage />} />
+        <Route path="/usuarios" element={<UsuariosPage />} />
       </Route>
 
       {/* Fallback 404 Route */}

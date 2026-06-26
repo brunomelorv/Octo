@@ -283,6 +283,15 @@ async def change_own_password(email: str, current_password: str, new_password: s
     finally:
         await db.close()
 
+async def delete_user(user_id: int) -> bool:
+    db = await get_db()
+    try:
+        cursor = await db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+    finally:
+        await db.close()
+
 async def get_current_user_from_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

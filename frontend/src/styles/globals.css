@@ -3,29 +3,40 @@
 @tailwind utilities;
 
 :root {
-  --accent: #4f46e5;
-  --ice: #f8fafc;
-  --card-bg: #ffffff;
-  --text: #1f2937;
-  --border: #e2e8f0;
-  --sidebar-bg: #0f172a; /* Dark sidebar in light mode */
-  --sidebar-text: #94a3b8;
-  --sidebar-hover: #1e293b;
+  --background: #f9fafb;        /* Page background - very light gray */
+  --surface: #ffffff;           /* Card/panel surface */
+  --surface-raised: #f3f4f6;   /* Slightly elevated surfaces */
+  --border: #e5e7eb;            /* Subtle borders */
+  --border-strong: #d1d5db;    /* Stronger borders for dividers */
+  --text-primary: #111827;     /* Primary text */
+  --text-secondary: #6b7280;   /* Muted/label text */
+  --text-tertiary: #9ca3af;    /* Placeholder/disabled text */
+  --accent: #1f2937;           /* Almost-black accent (Twenty's style) */
+  --accent-hover: #374151;     /* Accent hover */
+  --danger: #ef4444;
+  --success: #22c55e;
+  --warning: #f59e0b;
 }
 
 .dark {
-  --ice: #0b0f19;
-  --card-bg: #111827;
-  --text: #f3f4f6;
-  --border: #1f2937;
-  --sidebar-bg: #030712;
-  --sidebar-text: #9ca3af;
-  --sidebar-hover: #1f2937;
+  --background: #111827;
+  --surface: #1f2937;
+  --surface-raised: #374151;
+  --border: #374151;
+  --border-strong: #4b5563;
+  --text-primary: #f9fafb;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --accent: #f9fafb;
+  --accent-hover: #e5e7eb;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --warning: #f59e0b;
 }
 
 body {
-  background-color: var(--ice);
-  color: var(--text);
-  transition: background-color 0.2s ease, color 0.2s ease;
+  background-color: var(--background);
+  color: var(--text-primary);
+  transition: background-color 0.15s ease, color 0.15s ease;
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }

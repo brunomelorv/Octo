@@ -31,7 +31,6 @@ import {
 const formatDate = (dateStr?: string | null) => {
   if (!dateStr) return '-'
   try {
-    // Replace space with T to handle simple date time strings in JS Date parser
     const cleanedStr = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T')
     const d = new Date(cleanedStr)
     if (isNaN(d.getTime())) return dateStr
@@ -78,19 +77,19 @@ const formatDuration = (seconds?: number | null) => {
 const getStatusBadgeStyle = (status: string) => {
   switch (status) {
     case 'Agendou Reunião':
-      return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40'
+      return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/30'
     case 'Lead Qualificado':
-      return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/40'
+      return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border border-slate-350 dark:border-slate-700'
     case 'Sem Contato Efetivo':
-      return 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40'
+      return 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/30'
     case 'Caixa Postal / Não Atendido':
-      return 'bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50'
+      return 'bg-slate-100 text-slate-650 dark:bg-slate-800/40 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50'
     case 'Sem Interesse':
-      return 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/40'
+      return 'bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400 border border-red-200/50 dark:border-red-900/30'
     case 'Lead Desqualificado':
-      return 'bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400 border border-orange-200 dark:border-orange-900/40'
+      return 'bg-orange-50 text-orange-700 dark:bg-orange-950/20 dark:text-orange-400 border border-orange-200/50 dark:border-orange-900/30'
     case 'Sem Ligação':
-      return 'bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border border-sky-200 dark:border-sky-900/40'
+      return 'bg-sky-50 text-sky-700 dark:bg-sky-950/20 dark:text-sky-400 border border-sky-200/50 dark:border-sky-900/30'
     default:
       return 'bg-slate-50 text-slate-700 dark:bg-slate-800/20 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
   }
@@ -139,7 +138,6 @@ function classifyCall(call: Call) {
 }
 
 export default function LeadsPage() {
-  // Leads List state
   const [leads, setLeads] = useState<Lead[]>([])
   const [totalLeads, setTotalLeads] = useState(0)
   const [page, setPage] = useState(1)
@@ -148,14 +146,12 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Filters
   const [campaigns, setCampaigns] = useState<CampanhasResponse[]>([])
   const [selectedCampaign, setSelectedCampaign] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
-  // KPIs
   const [kpis, setKpis] = useState({
     total_leads: 0,
     total_com_chamada: 0,
@@ -165,22 +161,19 @@ export default function LeadsPage() {
   })
   const [kpisLoading, setKpisLoading] = useState(true)
 
-  // Details drawer
   const [selectedLead, setSelectedLead] = useState<LeadWithCalls | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
 
-  // Search input debounce handler
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchQuery)
-      setPage(1) // Reset to first page on search
+      setPage(1)
     }, 450)
     return () => clearTimeout(handler)
   }, [searchQuery])
 
-  // Fetch KPIs and Campaign list once on mount
   useEffect(() => {
     setKpisLoading(true)
     leadsService.getKpis()
@@ -202,7 +195,6 @@ export default function LeadsPage() {
       })
   }, [])
 
-  // Fetch leads when page, size, or filters change
   const fetchLeads = () => {
     setLoading(true)
     leadsService.getLeads({
@@ -229,7 +221,6 @@ export default function LeadsPage() {
     fetchLeads()
   }, [page, pageSize, selectedCampaign, selectedStatus, debouncedSearch])
 
-  // Open Lead details panel
   const handleOpenDetails = (phone: string) => {
     setDrawerOpen(true)
     setDetailsLoading(true)
@@ -253,7 +244,6 @@ export default function LeadsPage() {
     setSelectedLead(null)
   }
 
-  // Get WhatsApp redirect url
   const getWhatsAppLink = (phone?: string) => {
     if (!phone) return '#'
     const cleanPhone = phone.replace(/\D/g, '')
@@ -262,20 +252,20 @@ export default function LeadsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 transition-colors duration-150">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--text)]">Gestão de Leads</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <h1 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">Gestão de Leads</h1>
+          <p className="text-xs text-[var(--text-secondary)]">
             Lista completa de leads integrados, com filtros de campanhas e histórico de interações.
           </p>
         </div>
         <button
           onClick={fetchLeads}
-          className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] bg-[var(--card-bg)] hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium rounded-lg shadow-sm transition-colors"
+          className="flex items-center gap-1.5 bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--surface-raised)] text-sm h-8 px-3 rounded-md transition-colors duration-150"
         >
-          <Activity className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <Activity className="h-4 w-4 stroke-[1.5] text-[var(--text-secondary)]" />
           <span>Atualizar Lista</span>
         </button>
       </div>
@@ -283,104 +273,104 @@ export default function LeadsPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1 */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm flex items-center justify-between">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
           <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total de Leads</span>
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Total de Leads</span>
             {kpisLoading ? (
-              <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded"></div>
+              <div className="h-8 w-20 bg-[var(--surface-raised)] animate-pulse rounded-md"></div>
             ) : (
-              <h3 className="text-2xl font-bold text-[var(--text)]">{kpis.total_leads}</h3>
+              <h3 className="text-2xl font-semibold text-[var(--text-primary)]">{kpis.total_leads}</h3>
             )}
-            <p className="text-[11px] text-slate-500">Leads capturados no banco</p>
+            <p className="text-xs text-[var(--text-secondary)]">Leads capturados no banco</p>
           </div>
-          <div className="h-12 w-12 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-            <Target className="h-6 w-6" />
+          <div className="h-10 w-10 rounded-md bg-[var(--surface-raised)] flex items-center justify-center text-[var(--text-primary)]">
+            <Target className="h-4 w-4 stroke-[1.5]" />
           </div>
         </div>
 
         {/* KPI 2 */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm flex items-center justify-between">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
           <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Leads com Contato</span>
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Leads com Contato</span>
             {kpisLoading ? (
-              <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded"></div>
+              <div className="h-8 w-20 bg-[var(--surface-raised)] animate-pulse rounded-md"></div>
             ) : (
-              <h3 className="text-2xl font-bold text-[var(--text)]">{kpis.total_com_chamada}</h3>
+              <h3 className="text-2xl font-semibold text-[var(--text-primary)]">{kpis.total_com_chamada}</h3>
             )}
-            <p className="text-[11px] text-slate-500">Leads que receberam ligações</p>
+            <p className="text-xs text-[var(--text-secondary)]">Leads que receberam ligações</p>
           </div>
-          <div className="h-12 w-12 rounded-lg bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
-            <PhoneCall className="h-6 w-6" />
+          <div className="h-10 w-10 rounded-md bg-[var(--surface-raised)] flex items-center justify-center text-[var(--text-primary)]">
+            <PhoneCall className="h-4 w-4 stroke-[1.5]" />
           </div>
         </div>
 
         {/* KPI 3 */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm flex items-center justify-between">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
           <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Reuniões Agendadas</span>
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Reuniões Agendadas</span>
             {kpisLoading ? (
-              <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded"></div>
+              <div className="h-8 w-20 bg-[var(--surface-raised)] animate-pulse rounded-md"></div>
             ) : (
-              <h3 className="text-2xl font-bold text-[var(--text)]">{kpis.total_agendados}</h3>
+              <h3 className="text-2xl font-semibold text-[var(--text-primary)]">{kpis.total_agendados}</h3>
             )}
-            <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Conversões de agendamento</p>
+            <p className="text-xs text-emerald-600 dark:text-emerald-450 font-medium">Conversões de agendamento</p>
           </div>
-          <div className="h-12 w-12 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-            <Award className="h-6 w-6" />
+          <div className="h-10 w-10 rounded-md bg-[var(--surface-raised)] flex items-center justify-center text-[var(--text-primary)]">
+            <Award className="h-4 w-4 stroke-[1.5]" />
           </div>
         </div>
 
         {/* KPI 4 */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm flex items-center justify-between">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
           <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Taxa de Contato</span>
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Taxa de Contato</span>
             {kpisLoading ? (
-              <div className="h-7 w-20 bg-slate-200 dark:bg-slate-800 animate-pulse rounded"></div>
+              <div className="h-8 w-20 bg-[var(--surface-raised)] animate-pulse rounded-md"></div>
             ) : (
-              <h3 className="text-2xl font-bold text-[var(--text)]">{kpis.taxa_contato}%</h3>
+              <h3 className="text-2xl font-semibold text-[var(--text-primary)]">{kpis.taxa_contato}%</h3>
             )}
-            <div className="w-28 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
+            <div className="w-24 bg-[var(--border)] h-1 rounded-full overflow-hidden mt-1.5">
               <div
-                className="bg-indigo-600 dark:bg-indigo-500 h-full rounded-full"
+                className="bg-[var(--accent)] h-full rounded-full"
                 style={{ width: `${Math.min(kpis.taxa_contato, 100)}%` }}
               ></div>
             </div>
           </div>
-          <div className="h-12 w-12 rounded-lg bg-sky-50 dark:bg-sky-950/30 flex items-center justify-center text-sky-600 dark:text-sky-400">
-            <Activity className="h-6 w-6" />
+          <div className="h-10 w-10 rounded-md bg-[var(--surface-raised)] flex items-center justify-center text-[var(--text-primary)]">
+            <Activity className="h-4 w-4 stroke-[1.5]" />
           </div>
         </div>
       </div>
 
       {/* Filters Card */}
-      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 transition-colors duration-150">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
           {/* Search bar */}
-          <div className="space-y-2 md:col-span-2">
-            <label className="text-xs font-medium text-slate-500">Buscar Lead</label>
+          <div className="space-y-1 md:col-span-2">
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Buscar Lead</span>
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
+              <Search className="absolute left-2.5 top-2 h-4 w-4 text-[var(--text-tertiary)] stroke-[1.5]" />
               <input
                 type="text"
-                placeholder="Buscar por nome, e-mail, telefone, cidade..."
+                placeholder="Buscar por nome, e-mail, telefone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-[var(--border)] dark:bg-slate-900 rounded-lg text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-shadow"
+                className="w-full h-8 pl-8 pr-8 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="absolute right-2.5 top-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-4 w-4 stroke-[1.5]" />
                 </button>
               )}
             </div>
           </div>
 
           {/* Campaign Filter */}
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-500">Campanha</label>
+          <div className="space-y-1">
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Campanha</span>
             <div className="relative">
               <select
                 value={selectedCampaign}
@@ -388,7 +378,7 @@ export default function LeadsPage() {
                   setSelectedCampaign(e.target.value)
                   setPage(1)
                 }}
-                className="w-full px-3 py-2 border border-[var(--border)] dark:bg-slate-900 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-shadow"
+                className="w-full h-8 pl-3 pr-8 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] appearance-none transition-colors duration-150"
               >
                 <option value="all">Todas as Campanhas</option>
                 {campaigns.map((c) => (
@@ -397,13 +387,13 @@ export default function LeadsPage() {
                   </option>
                 ))}
               </select>
-              <Filter className="absolute right-3 top-3 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              <Filter className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[var(--text-tertiary)] stroke-[1.5] pointer-events-none" />
             </div>
           </div>
 
           {/* Status Filter */}
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-500">Status de Contato</label>
+          <div className="space-y-1">
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Status de Contato</span>
             <div className="relative">
               <select
                 value={selectedStatus}
@@ -411,7 +401,7 @@ export default function LeadsPage() {
                   setSelectedStatus(e.target.value)
                   setPage(1)
                 }}
-                className="w-full px-3 py-2 border border-[var(--border)] dark:bg-slate-900 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-shadow"
+                className="w-full h-8 pl-3 pr-8 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] appearance-none transition-colors duration-150"
               >
                 <option value="all">Todos os Status</option>
                 <option value="Agendou Reunião">Agendou Reunião</option>
@@ -422,36 +412,36 @@ export default function LeadsPage() {
                 <option value="Lead Desqualificado">Lead Desqualificado</option>
                 <option value="Sem Ligação">Sem Ligação</option>
               </select>
-              <Filter className="absolute right-3 top-3 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              <Filter className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[var(--text-tertiary)] stroke-[1.5] pointer-events-none" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Leads Table Container */}
-      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden transition-colors duration-150">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
-            <span className="text-sm font-medium text-slate-500">Carregando leads...</span>
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
+            <span className="text-xs text-[var(--text-secondary)]">Carregando leads...</span>
           </div>
         ) : error ? (
           <div className="text-center py-20 px-4">
-            <p className="text-red-500 font-medium">{error}</p>
+            <p className="text-red-500 font-medium text-sm">{error}</p>
             <button
               onClick={fetchLeads}
-              className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg"
+              className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium rounded-md transition-colors duration-150"
             >
               Tentar Novamente
             </button>
           </div>
         ) : leads.length === 0 ? (
           <div className="text-center py-20 px-4">
-            <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400 mb-3">
-              <User className="h-6 w-6" />
+            <div className="h-10 w-10 rounded-full bg-[var(--surface-raised)] flex items-center justify-center mx-auto text-[var(--text-secondary)] mb-3">
+              <User className="h-5 w-5 stroke-[1.5]" />
             </div>
-            <h4 className="text-base font-semibold text-[var(--text)]">Nenhum lead encontrado</h4>
-            <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">
+            <h4 className="text-sm font-semibold text-[var(--text-primary)]">Nenhum lead encontrado</h4>
+            <p className="text-xs text-[var(--text-secondary)] mt-1 max-w-sm mx-auto">
               Nenhum registro corresponde aos filtros ou pesquisa selecionada. Tente limpar os filtros.
             </p>
             {(selectedStatus !== 'all' || selectedCampaign !== 'all' || searchQuery) && (
@@ -461,7 +451,7 @@ export default function LeadsPage() {
                   setSelectedCampaign('all')
                   setSearchQuery('')
                 }}
-                className="mt-4 px-4 py-2 border border-[var(--border)] hover:bg-slate-50 text-sm font-medium rounded-lg"
+                className="mt-4 bg-transparent border border-[var(--border)] text-[var(--text-primary)] text-sm h-8 px-3 rounded-md hover:bg-[var(--surface-raised)] transition-colors duration-150"
               >
                 Limpar Filtros
               </button>
@@ -471,41 +461,41 @@ export default function LeadsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-[var(--border)] bg-slate-50/50 dark:bg-slate-800/20 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="py-4 px-6">Lead</th>
-                  <th className="py-4 px-6">Telefone</th>
-                  <th className="py-4 px-6">Origem / Cidade</th>
-                  <th className="py-4 px-6">Campanha / Canal</th>
-                  <th className="py-4 px-6 text-center">Status de Contato</th>
-                  <th className="py-4 px-6">Última Chamada</th>
-                  <th className="py-4 px-6 text-right">Ações</th>
+                <tr className="border-b border-[var(--border)] text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">
+                  <th className="py-2.5 px-4 font-semibold">Lead</th>
+                  <th className="py-2.5 px-4 font-semibold">Telefone</th>
+                  <th className="py-2.5 px-4 font-semibold">Origem / Cidade</th>
+                  <th className="py-2.5 px-4 font-semibold">Campanha / Canal</th>
+                  <th className="py-2.5 px-4 font-semibold text-center">Status de Contato</th>
+                  <th className="py-2.5 px-4 font-semibold">Última Chamada</th>
+                  <th className="py-2.5 px-4 font-semibold text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--border)] text-sm text-[var(--text)]">
+              <tbody className="text-sm text-[var(--text-primary)]">
                 {leads.map((lead) => {
                   const initials = lead.full_name
-                    ? lead.full_name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
-                    : 'U'
+                      ? lead.full_name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
+                      : 'U'
                   const isInstagram = lead.platform === 'Instagram' || lead.platform === 'ig'
                   const isOrganic = lead.is_organic === 1
 
                   return (
                     <tr
                       key={lead.id}
-                      className="hover:bg-slate-50/60 dark:hover:bg-slate-800/10 transition-colors group cursor-pointer"
+                      className="border-b border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors duration-150 cursor-pointer group"
                       onClick={() => handleOpenDetails(lead.phone)}
                     >
                       {/* Name & Email */}
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-semibold flex items-center justify-center text-xs shrink-0">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-7 w-7 rounded-full bg-[var(--surface-raised)] text-[var(--text-primary)] border border-[var(--border)] font-medium flex items-center justify-center text-xs shrink-0">
                             {initials}
                           </div>
                           <div className="min-w-0">
-                            <h4 className="font-semibold truncate max-w-[180px] group-hover:text-indigo-600 transition-colors">
+                            <h4 className="font-semibold truncate max-w-[180px] text-[var(--text-primary)]">
                               {lead.full_name || 'Sem Nome'}
                             </h4>
-                            <p className="text-xs text-slate-400 truncate max-w-[180px]">
+                            <p className="text-xs text-[var(--text-secondary)] truncate max-w-[180px]">
                               {lead.email || 'Sem e-mail'}
                             </p>
                           </div>
@@ -513,66 +503,66 @@ export default function LeadsPage() {
                       </td>
 
                       {/* Phone */}
-                      <td className="py-4 px-6 font-medium whitespace-nowrap">
-                        <span className="text-slate-600 dark:text-slate-300">{lead.phone || '-'}</span>
+                      <td className="py-3 px-4 whitespace-nowrap text-[var(--text-primary)] font-normal">
+                        {lead.phone || '-'}
                       </td>
 
                       {/* Region / City */}
-                      <td className="py-4 px-6 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 text-slate-500">
-                          <MapPin className="h-3.5 w-3.5 shrink-0" />
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="flex items-center gap-1 text-[var(--text-secondary)]">
+                          <MapPin className="h-3.5 w-3.5 stroke-[1.5] shrink-0" />
                           <span className="truncate max-w-[120px]">{lead.city || 'Desconhecida'}</span>
                         </div>
                       </td>
 
                       {/* Campaign & Platform */}
-                      <td className="py-4 px-6">
-                        <div className="space-y-1">
-                          <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700/50 block w-fit max-w-[160px] truncate">
+                      <td className="py-3 px-4">
+                        <div className="space-y-0.5">
+                          <span className="text-xs text-[var(--text-primary)] font-medium block truncate max-w-[160px]">
                             {lead.campaign_name || 'Campanha Direta'}
                           </span>
-                          <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                          <div className="flex items-center gap-1 text-[11px] text-[var(--text-secondary)]">
                             <span className={`h-1.5 w-1.5 rounded-full ${isInstagram ? 'bg-pink-500' : 'bg-blue-500'}`}></span>
                             <span>{lead.platform || 'Facebook'}</span>
-                            {isOrganic && <span className="ml-1 text-emerald-600 dark:text-emerald-400 font-bold">(Orgânico)</span>}
+                            {isOrganic && <span className="ml-1 text-emerald-600 dark:text-emerald-450 font-medium">(Orgânico)</span>}
                           </div>
                         </div>
                       </td>
 
                       {/* Contact Status */}
-                      <td className="py-4 px-6 text-center whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadgeStyle(lead.status_chamada)}`}>
+                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${getStatusBadgeStyle(lead.status_chamada)}`}>
                           {lead.status_chamada}
                         </span>
                       </td>
 
                       {/* Last Call */}
-                      <td className="py-4 px-6 whitespace-nowrap">
+                      <td className="py-3 px-4 whitespace-nowrap">
                         {lead.call_date ? (
-                          <div className="space-y-0.5">
-                            <div className="text-xs text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1">
-                              <Calendar className="h-3 w-3 text-slate-400" />
+                          <div className="space-y-0.5 text-xs text-[var(--text-primary)]">
+                            <div className="font-medium flex items-center gap-1">
+                              <Calendar className="h-3 w-3 stroke-[1.5] text-[var(--text-secondary)]" />
                               <span>{formatDate(lead.call_date)}</span>
                             </div>
                             {lead.call_duration !== null && (
-                              <div className="text-[11px] text-slate-400 flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
+                              <div className="text-[11px] text-[var(--text-secondary)] flex items-center gap-1">
+                                <Clock className="h-3 w-3 stroke-[1.5]" />
                                 <span>Duração: {formatDuration(lead.call_duration)}</span>
                               </div>
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-400 font-normal">Nenhum registro</span>
+                          <span className="text-xs text-[var(--text-secondary)] font-normal">Nenhum registro</span>
                         )}
                       </td>
 
                       {/* Action */}
-                      <td className="py-4 px-6 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className="py-3 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => handleOpenDetails(lead.phone)}
-                          className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg transition-colors inline-flex items-center gap-1.5 text-xs font-semibold"
+                          className="h-7 px-2.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-raised)] border border-transparent hover:border-[var(--border)] rounded-md transition-colors duration-150 inline-flex items-center gap-1 text-xs font-medium bg-transparent"
                         >
-                          <Phone className="h-3.5 w-3.5" />
+                          <Phone className="h-3.5 w-3.5 stroke-[1.5]" />
                           <span>Ver Chamadas</span>
                         </button>
                       </td>
@@ -586,24 +576,24 @@ export default function LeadsPage() {
 
         {/* Pagination controls */}
         {!loading && leads.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between border-t border-[var(--border)] px-6 py-4 gap-4 bg-slate-50/50 dark:bg-slate-800/10">
-            <div className="text-xs text-slate-500">
-              Exibindo <span className="font-semibold text-[var(--text)]">{Math.min((page - 1) * pageSize + 1, totalLeads)}</span> a{' '}
-              <span className="font-semibold text-[var(--text)]">{Math.min(page * pageSize, totalLeads)}</span> de{' '}
-              <span className="font-semibold text-[var(--text)]">{totalLeads}</span> leads.
+          <div className="flex flex-col sm:flex-row items-center justify-between border-t border-[var(--border)] px-4 py-3 gap-3 bg-[var(--surface)] text-[var(--text-secondary)] transition-colors duration-150">
+            <div className="text-xs">
+              Exibindo <span className="font-semibold text-[var(--text-primary)]">{Math.min((page - 1) * pageSize + 1, totalLeads)}</span> a{' '}
+              <span className="font-semibold text-[var(--text-primary)]">{Math.min(page * pageSize, totalLeads)}</span> de{' '}
+              <span className="font-semibold text-[var(--text-primary)]">{totalLeads}</span> leads.
             </div>
 
             <div className="flex items-center gap-4">
               {/* Page size selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">Exibir:</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs">Exibir:</span>
                 <select
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(Number(e.target.value))
                     setPage(1)
                   }}
-                  className="px-2 py-1 border border-[var(--border)] dark:bg-slate-900 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="h-7 px-2 bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
                 >
                   <option value={10}>10</option>
                   <option value={20}>20</option>
@@ -617,21 +607,21 @@ export default function LeadsPage() {
                 <button
                   disabled={page <= 1}
                   onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-                  className="p-1.5 border border-[var(--border)] rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                  className="p-1 border border-[var(--border)] rounded-md bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-primary)] disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-150"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-3.5 w-3.5 stroke-[1.5]" />
                 </button>
 
-                <div className="text-xs font-semibold text-[var(--text)] px-3">
+                <div className="text-xs font-semibold text-[var(--text-primary)] px-2">
                   Página {page} de {totalPages || 1}
                 </div>
 
                 <button
                   disabled={page >= totalPages}
                   onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-                  className="p-1.5 border border-[var(--border)] rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                  className="p-1 border border-[var(--border)] rounded-md bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-primary)] disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-150"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3.5 w-3.5 stroke-[1.5]" />
                 </button>
               </div>
             </div>
@@ -644,42 +634,42 @@ export default function LeadsPage() {
         <div className="fixed inset-0 z-50 overflow-hidden">
           {/* Backdrop overlay */}
           <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+            className="absolute inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
             onClick={closeDrawer}
           />
 
           {/* Drawer container */}
           <div className="absolute inset-y-0 right-0 flex max-w-full pl-10">
-            <div className="w-screen max-w-xl sm:max-w-2xl bg-[var(--card-bg)] border-l border-[var(--border)] shadow-2xl flex flex-col h-full overflow-hidden text-[var(--text)]">
+            <div className="w-screen max-w-xl sm:max-w-2xl bg-[var(--surface)] border-l border-[var(--border)] flex flex-col h-full overflow-hidden text-[var(--text-primary)] transition-colors duration-150">
               {/* Header */}
-              <div className="p-6 border-b border-[var(--border)] bg-slate-50/50 dark:bg-slate-800/10 flex items-center justify-between">
+              <div className="p-4 border-b border-[var(--border)] bg-[var(--surface-raised)] flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-bold">Histórico do Lead</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Detalhes do lead e linha do tempo de ligações com gravações e resumos de IA.
+                  <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">Histórico do Lead</h2>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Detalhes do lead e linha do tempo de ligações.
                   </p>
                 </div>
                 <button
                   onClick={closeDrawer}
-                  className="p-1.5 rounded-lg border border-[var(--border)] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="p-1 rounded-md border border-[var(--border)] bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-150"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4 stroke-[1.5]" />
                 </button>
               </div>
 
               {/* Drawer Body */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {detailsLoading ? (
                   <div className="flex flex-col items-center justify-center py-20 space-y-4 h-full">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
-                    <span className="text-sm font-medium text-slate-500">Buscando histórico do lead...</span>
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
+                    <span className="text-xs text-[var(--text-secondary)]">Buscando histórico do lead...</span>
                   </div>
                 ) : detailsError ? (
                   <div className="text-center py-10">
-                    <p className="text-red-500 text-sm font-semibold">{detailsError}</p>
+                    <p className="text-red-500 text-xs font-semibold">{detailsError}</p>
                     <button
                       onClick={() => handleOpenDetails(selectedLead?.phone || '')}
-                      className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg"
+                      className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-medium rounded-md transition-colors duration-150"
                     >
                       Recarregar
                     </button>
@@ -687,98 +677,96 @@ export default function LeadsPage() {
                 ) : selectedLead ? (
                   <>
                     {/* Lead Profile Info Block */}
-                    <div className="bg-slate-50/60 dark:bg-slate-800/10 border border-[var(--border)] rounded-xl p-5 space-y-4">
+                    <div className="bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4 space-y-3 transition-colors duration-150">
                       <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-bold flex items-center justify-center text-base shrink-0">
+                        <div className="h-10 w-10 rounded-full bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] font-bold flex items-center justify-center text-sm shrink-0">
                           {selectedLead.full_name
                             ? selectedLead.full_name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
                             : 'L'}
                         </div>
                         <div>
-                          <h3 className="text-base font-bold">{selectedLead.full_name || 'Sem Nome'}</h3>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeStyle(selectedLead.status_chamada)} mt-1`}>
+                          <h3 className="text-sm font-semibold text-[var(--text-primary)]">{selectedLead.full_name || 'Sem Nome'}</h3>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${getStatusBadgeStyle(selectedLead.status_chamada)} mt-1`}>
                             {selectedLead.status_chamada}
                           </span>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs border-t border-[var(--border)] text-slate-600 dark:text-slate-300">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2.5 border-t border-[var(--border)] text-xs text-[var(--text-secondary)]">
                         <div className="flex items-center gap-2">
-                          <Smartphone className="h-3.5 w-3.5 text-slate-400" />
+                          <Smartphone className="h-3.5 w-3.5 stroke-[1.5]" />
                           <span>{selectedLead.phone || 'Sem telefone'}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Mail className="h-3.5 w-3.5 text-slate-400" />
+                          <Mail className="h-3.5 w-3.5 stroke-[1.5]" />
                           <span className="truncate">{selectedLead.email || 'Sem e-mail'}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                          <MapPin className="h-3.5 w-3.5 stroke-[1.5]" />
                           <span>{selectedLead.city || 'Cidade desconhecida'}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                          <Calendar className="h-3.5 w-3.5 stroke-[1.5]" />
                           <span>Cadastrado em: {formatDateOnly(selectedLead.created_time)}</span>
                         </div>
                         <div className="flex items-center gap-2 sm:col-span-2">
-                          <FileText className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <FileText className="h-3.5 w-3.5 stroke-[1.5] shrink-0" />
                           <span className="truncate">Campanha: {selectedLead.campaign_name} ({selectedLead.platform})</span>
                         </div>
                       </div>
 
                       {/* WhatsApp Fast Call Action */}
-                      <div className="pt-2">
+                      <div className="pt-1">
                         <a
                           href={getWhatsAppLink(selectedLead.phone)}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex items-center justify-center gap-2 w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors"
+                          className="flex items-center justify-center gap-1.5 w-full h-8 bg-[#22c55e] hover:bg-[#16a34a] text-white font-medium text-xs rounded-md transition-colors duration-150"
                         >
-                          <MessageSquare className="h-4 w-4" />
+                          <MessageSquare className="h-4 w-4 stroke-[1.5]" />
                           <span>Abrir WhatsApp ({selectedLead.phone})</span>
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="h-3 w-3 stroke-[1.5]" />
                         </a>
                       </div>
                     </div>
 
                     {/* Calling Timeline */}
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                        <Volume2 className="h-4 w-4 text-indigo-500" />
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-semibold uppercase tracking-widest text-[var(--text-secondary)] flex items-center gap-1.5">
+                        <Volume2 className="h-4 w-4 stroke-[1.5]" />
                         <span>Histórico de Chamadas ({selectedLead.chamadas?.length || 0})</span>
                       </h4>
 
                       {!selectedLead.chamadas || selectedLead.chamadas.length === 0 ? (
-                        <div className="text-center py-10 border border-dashed border-[var(--border)] rounded-xl bg-slate-50/30 dark:bg-slate-900/10">
-                          <Phone className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                          <p className="text-xs text-slate-500">Este lead ainda não recebeu nenhuma ligação de contato.</p>
+                        <div className="text-center py-10 border border-dashed border-[var(--border)] rounded-lg bg-[var(--surface-raised)]">
+                          <Phone className="h-6 w-6 text-[var(--text-tertiary)] mx-auto mb-2 stroke-[1.5]" />
+                          <p className="text-xs text-[var(--text-secondary)] font-normal">Este lead ainda não recebeu nenhuma ligação de contato.</p>
                         </div>
                       ) : (
-                        <div className="relative pl-6 border-l border-slate-200 dark:border-slate-800 space-y-6 ml-3">
+                        <div className="relative pl-4 border-l border-[var(--border)] space-y-4 ml-2">
                           {selectedLead.chamadas.map((call, idx) => {
                             const { classif, subcat, score } = classifyCall(call)
                             return (
                               <div key={call.id || idx} className="relative">
                                 {/* Bullet indicator on the line */}
-                                <div className="absolute -left-[31px] top-1.5 h-4 w-4 rounded-full border-2 border-white dark:border-slate-900 bg-indigo-600 dark:bg-indigo-400 flex items-center justify-center shadow-sm">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-white"></span>
-                                </div>
+                                <div className="absolute -left-[23px] top-1.5 h-2.5 w-2.5 rounded-full border border-[var(--border)] bg-[var(--accent)]"></div>
 
                                 {/* Call item box */}
-                                <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-sm space-y-3 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/60 pb-2">
-                                    <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-md p-3.5 space-y-2 transition-colors duration-150">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-[var(--border)] pb-2">
+                                    <div className="text-xs font-semibold text-[var(--text-primary)]">
                                       {formatDate(call.data_hora)}
                                     </div>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${getStatusBadgeStyle(classif)}`}>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${getStatusBadgeStyle(classif)}`}>
                                         {classif}
                                       </span>
                                       {subcat && subcat !== classif && (
-                                        <span className="text-[10px] text-slate-450 dark:text-slate-500 font-medium">({subcat})</span>
+                                        <span className="text-[10px] text-[var(--text-secondary)]">({subcat})</span>
                                       )}
                                       {score && (
                                         <div className="flex items-center gap-0.5 text-amber-500 bg-amber-50 dark:bg-amber-950/20 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200/50">
-                                          <Star className="h-3 w-3 fill-amber-500" />
+                                          <Star className="h-3 w-3 fill-amber-500 stroke-[1.5]" />
                                           <span>{score}/8</span>
                                         </div>
                                       )}
@@ -786,35 +774,34 @@ export default function LeadsPage() {
                                   </div>
 
                                   {/* Call info grid */}
-                                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
+                                  <div className="grid grid-cols-2 gap-2 text-xs text-[var(--text-secondary)]">
                                     <div>
-                                      Duração: <span className="font-semibold text-slate-600 dark:text-slate-300">{formatDuration(call.duracao_segundos)}</span>
+                                      Duração: <span className="font-semibold text-[var(--text-primary)]">{formatDuration(call.duracao_segundos)}</span>
                                     </div>
                                     <div className="text-right">
-                                      Origem: <span className="font-semibold text-slate-600 dark:text-slate-300">{call.source_file ? call.source_file.replace('.csv', '') : 'Manual'}</span>
+                                      Origem: <span className="font-semibold text-[var(--text-primary)]">{call.source_file ? call.source_file.replace('.csv', '') : 'Manual'}</span>
                                     </div>
                                   </div>
 
                                   {/* Call AI Summary */}
                                   {call.resumo_ligacao && (
-                                    <div className="bg-indigo-50/20 dark:bg-indigo-950/10 border-l-2 border-indigo-400/80 p-3 rounded-r-lg space-y-1">
-                                      <div className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1">
-                                        <SparklesIcon className="h-3.5 w-3.5 text-indigo-500" />
+                                    <div className="bg-[var(--surface-raised)] border-l-2 border-[var(--accent)] p-2.5 rounded-r-md space-y-1">
+                                      <div className="text-[10px] font-semibold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-1">
+                                        <SparklesIcon className="h-3.5 w-3.5 text-[var(--text-secondary)] stroke-[1.5]" />
                                         <span>Resumo de IA</span>
                                       </div>
-                                      <p className="text-xs italic text-slate-600 dark:text-slate-300 leading-relaxed">
+                                      <p className="text-xs italic text-[var(--text-primary)] leading-relaxed">
                                         "{call.resumo_ligacao}"
                                       </p>
                                     </div>
                                   )}
 
-                                  {/* Call tags & notes */}
                                   {call.tag && (
                                     <div className="flex flex-wrap gap-1">
                                       {call.tag.split(',').map((t, tIdx) => (
                                         <span
                                           key={tIdx}
-                                          className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded"
+                                          className="text-[10px] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded"
                                         >
                                           {t.trim()}
                                         </span>
@@ -823,7 +810,7 @@ export default function LeadsPage() {
                                   )}
 
                                   {call.anotacoes && (
-                                    <div className="text-xs bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded border border-slate-200/50 dark:border-slate-800 text-slate-600 dark:text-slate-300">
+                                    <div className="text-xs bg-[var(--surface-raised)] p-2 rounded border border-[var(--border)] text-[var(--text-primary)]">
                                       <span className="font-semibold block mb-0.5">Anotações:</span>
                                       {call.anotacoes}
                                     </div>
@@ -831,14 +818,14 @@ export default function LeadsPage() {
 
                                   {/* Audio Player */}
                                   {call.link_gravacao && (
-                                    <div className="pt-2">
-                                      <label className="text-[10px] font-semibold text-slate-400 block mb-1">
+                                    <div className="pt-1">
+                                      <label className="text-[10px] font-semibold text-[var(--text-secondary)] block mb-1">
                                         Gravação do Contato
                                       </label>
                                       <audio
                                         controls
                                         src={call.link_gravacao}
-                                        className="w-full h-8 outline-none rounded bg-slate-50 dark:bg-slate-900 border border-[var(--border)]"
+                                        className="w-full h-8 outline-none rounded bg-[var(--surface-raised)] border border-[var(--border)]"
                                       />
                                     </div>
                                   )}
@@ -860,7 +847,6 @@ export default function LeadsPage() {
   )
 }
 
-// Internal inline icon component helper
 function SparklesIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg

@@ -1,7 +1,18 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { NavLink } from 'react-router-dom'
-import { KeyRound, LogOut, ShieldAlert, X } from 'lucide-react'
+import {
+  KeyRound,
+  LogOut,
+  ShieldAlert,
+  X,
+  LayoutDashboard,
+  Users,
+  BarChart3,
+  TrendingUp,
+  UserCog,
+  MoreHorizontal
+} from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { authService } from '../../services/auth'
 
@@ -14,53 +25,34 @@ export default function Sidebar() {
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null)
   const [savingPassword, setSavingPassword] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const navItems = [
     {
       name: 'Dashboard',
       path: '/dashboard',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
-        </svg>
-      ),
+      icon: <LayoutDashboard className="h-4 w-4 stroke-[1.5]" />,
     },
     {
       name: 'Leads',
       path: '/leads',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      ),
+      icon: <Users className="h-4 w-4 stroke-[1.5]" />,
     },
     {
       name: 'Negócios',
       path: '/negocios',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-        </svg>
-      ),
+      icon: <BarChart3 className="h-4 w-4 stroke-[1.5]" />,
     },
     {
-      name: 'Campanhas',
-      path: '/campanhas',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-        </svg>
-      ),
+      name: 'Performance',
+      path: '/performance',
+      icon: <TrendingUp className="h-4 w-4 stroke-[1.5]" />,
     },
     {
       name: 'Usuarios',
       path: '/usuarios',
       adminOnly: true,
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a4 4 0 11-8 0 4 4 0 018 0zM5 21a7 7 0 0114 0M19 8v6m3-3h-6" />
-        </svg>
-      ),
+      icon: <UserCog className="h-4 w-4 stroke-[1.5]" />,
     },
   ]
 
@@ -82,7 +74,7 @@ export default function Sidebar() {
     setPasswordSuccess(null)
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('A nova senha e a confirmacao nao conferem.')
+      setPasswordError('A nova senha e a confirmação não conferem.')
       return
     }
 
@@ -95,89 +87,103 @@ export default function Sidebar() {
       setConfirmPassword('')
       setTimeout(() => closePasswordModal(), 900)
     } catch (err: any) {
-      setPasswordError(err?.response?.data?.detail || 'Nao foi possivel alterar a senha.')
+      setPasswordError(err?.response?.data?.detail || 'Não foi possível alterar a senha.')
     } finally {
       setSavingPassword(false)
     }
   }
 
   return (
-    <aside className="w-[240px] flex-shrink-0 bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] flex flex-col h-full select-none border-r border-gray-800">
+    <aside className="w-[220px] flex-shrink-0 bg-[#111827] text-gray-400 flex flex-col h-full select-none border-r border-gray-800 transition-colors duration-150">
       {/* Brand logo */}
-      <div className="p-6 flex items-center gap-2.5 border-b border-gray-800/60">
-        <div className="w-7 h-7 rounded-md bg-accent flex items-center justify-center text-white font-bold text-base shadow-sm">
-          L
-        </div>
-        <span className="text-lg font-bold tracking-tight text-white">
-          Lead<span className="text-accent font-medium">Analytics</span>
+      <div className="h-12 px-4 flex items-center gap-2 border-b border-gray-800/60">
+        <span className="h-2 w-2 rounded-full bg-white flex-shrink-0" />
+        <span className="text-sm font-semibold tracking-tight text-white">
+          Portal do Frank
         </span>
       </div>
 
       {/* Nav menu links */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-2 py-3 space-y-0.5">
         {visibleNavItems.map((item) => (
           <NavLink
             key={item.name}
             to={item.path}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition duration-150 ${
+              `flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-150 ${
                 isActive
-                  ? 'bg-accent/15 text-white shadow-sm font-semibold border-l-2 border-accent pl-2.5'
-                  : 'hover:bg-[var(--sidebar-hover)] hover:text-white'
+                  ? 'bg-white/10 text-white'
+                  : 'hover:bg-white/5 hover:text-gray-200 text-gray-400'
               }`
             }
           >
             {item.icon}
-            {item.name}
+            <span>{item.name}</span>
           </NavLink>
         ))}
       </nav>
 
       {/* Bottom Profile section */}
-      <div className="p-4 border-t border-gray-800/60 flex flex-col gap-3">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-9 h-9 rounded-full bg-accent/20 border border-accent/30 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-            {user?.name ? user.name.slice(0, 2).toUpperCase() : 'US'}
+      <div className="p-3 border-t border-gray-800/60 relative">
+        <div className="flex items-center justify-between gap-2 overflow-hidden">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-full bg-gray-700 text-gray-200 flex items-center justify-center font-bold text-xs flex-shrink-0">
+              {user?.name ? user.name.slice(0, 2).toUpperCase() : 'US'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-white truncate">{user?.name || 'Carregando...'}</p>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-white truncate">{user?.name || 'Carregando...'}</p>
-            <p className="text-xs text-gray-400 truncate">{user?.email || '...'}</p>
-          </div>
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="p-1 hover:bg-white/5 rounded text-gray-400 hover:text-white transition-colors duration-150"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
         </div>
 
-        <button
-          onClick={() => setPasswordOpen(true)}
-          className="flex items-center justify-center gap-2 w-full py-2 bg-gray-800/40 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-semibold border border-gray-700/50 transition duration-150"
-        >
-          <KeyRound className="h-4 w-4" />
-          Trocar senha
-        </button>
-
-        <button
-          onClick={logout}
-          className="flex items-center justify-center gap-2 w-full py-2 bg-gray-800/40 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-semibold border border-gray-700/50 transition duration-150"
-        >
-          <LogOut className="h-4 w-4" />
-          Sair da Conta
-        </button>
+        {/* Menu Popover */}
+        {menuOpen && (
+          <div className="absolute bottom-12 right-3 left-3 bg-[#1f2937] border border-gray-700 rounded-md shadow-lg py-1 z-50 text-xs">
+            <button
+              onClick={() => {
+                setPasswordOpen(true)
+                setMenuOpen(false)
+              }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-gray-300 hover:bg-white/5 hover:text-white text-left transition-colors duration-150"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              Trocar senha
+            </button>
+            <button
+              onClick={() => {
+                logout()
+                setMenuOpen(false)
+              }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-red-400 hover:bg-white/5 hover:text-red-300 text-left transition-colors duration-150"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sair da Conta
+            </button>
+          </div>
+        )}
       </div>
 
       {passwordOpen && (
         <div className="fixed inset-0 z-[60]">
-          <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={closePasswordModal} />
+          <div className="absolute inset-0 bg-black/45 backdrop-blur-xs" onClick={closePasswordModal} />
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-[var(--card-bg)] text-[var(--text)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden">
+            <div className="w-full max-w-sm bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg overflow-hidden transition-colors duration-150">
               <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <ShieldAlert className="h-5 w-5 text-indigo-600" />
+                  <ShieldAlert className="h-4 w-4 text-[var(--accent)]" />
                   <div>
-                    <h3 className="text-sm font-bold">Trocar senha</h3>
-                    <p className="text-xs text-slate-500">Atualize a senha da sua conta.</p>
+                    <h3 className="text-xs font-semibold uppercase tracking-widest text-[var(--text-secondary)]">Trocar senha</h3>
                   </div>
                 </div>
                 <button
                   onClick={closePasswordModal}
-                  className="p-1.5 rounded-lg border border-[var(--border)] hover:bg-slate-50 dark:hover:bg-slate-800"
+                  className="p-1 rounded-md border border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors duration-150 text-[var(--text-secondary)]"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -185,48 +191,48 @@ export default function Sidebar() {
 
               <form onSubmit={handlePasswordSubmit} className="p-4 space-y-3">
                 {passwordError && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  <div className="rounded-md border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900/30 px-3 py-2 text-xs text-red-700 dark:text-red-400">
                     {passwordError}
                   </div>
                 )}
                 {passwordSuccess && (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-900/30 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400">
                     {passwordSuccess}
                   </div>
                 )}
 
                 <label className="block">
-                  <span className="text-xs font-semibold text-slate-500">Senha atual</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Senha atual</span>
                   <input
                     type="password"
                     required
                     value={currentPassword}
                     onChange={(event) => setCurrentPassword(event.target.value)}
-                    className="mt-1 w-full px-3 py-2 border border-[var(--border)] dark:bg-slate-900 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="mt-1 w-full px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="text-xs font-semibold text-slate-500">Nova senha</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Nova senha</span>
                   <input
                     type="password"
                     required
                     minLength={6}
                     value={newPassword}
                     onChange={(event) => setNewPassword(event.target.value)}
-                    className="mt-1 w-full px-3 py-2 border border-[var(--border)] dark:bg-slate-900 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="mt-1 w-full px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="text-xs font-semibold text-slate-500">Confirmar nova senha</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Confirmar nova senha</span>
                   <input
                     type="password"
                     required
                     minLength={6}
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
-                    className="mt-1 w-full px-3 py-2 border border-[var(--border)] dark:bg-slate-900 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="mt-1 w-full px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
                   />
                 </label>
 
@@ -234,14 +240,14 @@ export default function Sidebar() {
                   <button
                     type="button"
                     onClick={closePasswordModal}
-                    className="flex-1 px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-semibold"
+                    className="flex-1 h-8 px-3 rounded-md border border-[var(--border)] hover:bg-[var(--surface-raised)] text-sm font-medium transition-colors duration-150 text-[var(--text-primary)] bg-transparent"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={savingPassword}
-                    className="flex-1 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-60"
+                    className="flex-1 h-8 px-3 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors duration-150 disabled:opacity-60"
                   >
                     {savingPassword ? 'Salvando...' : 'Salvar'}
                   </button>

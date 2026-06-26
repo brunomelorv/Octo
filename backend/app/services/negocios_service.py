@@ -137,3 +137,18 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
         (lead_id, etapa_anterior, etapa, valor, user_email, user_name, updated_at)
     )
     return True
+
+async def get_negocios_historico() -> list[dict]:
+    """
+    Retrieves the complete audit trail from negocios_historico, joined with lead name.
+    """
+    sql = """
+    SELECT h.id, h.lead_id, h.etapa_anterior, h.etapa_nova, h.valor, 
+           h.usuario_email, h.usuario_nome, h.data_hora, l.full_name as lead_name
+    FROM negocios_historico h
+    LEFT JOIN leads l ON l.id = h.lead_id
+    ORDER BY h.data_hora DESC
+    LIMIT 200
+    """
+    rows = await query(sql)
+    return [dict(row) for row in rows]

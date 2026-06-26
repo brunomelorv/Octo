@@ -13,6 +13,7 @@ from app.services.auth_service import (
     list_users,
     create_user,
     update_user,
+    delete_user,
     ACCESS_TOKEN_EXPIRE_HOURS
 )
 
@@ -132,3 +133,14 @@ async def patch_user(user_id: int, data: UserUpdate, _: UserResponse = Depends(r
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado")
     return user
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_user(user_id: int, current_user: UserResponse = Depends(require_admin)):
+    if str(user_id) == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Você não pode excluir sua própria conta",
+        )
+    deleted = await delete_user(user_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")

@@ -1,52 +1,55 @@
 import { useState, useEffect, useMemo } from 'react'
+import type { DragEvent, MouseEvent } from 'react'
 import { negociosService } from '../services/negocios'
 import type { Negocio } from '../services/negocios'
 import { campanhasService } from '../services/campanhas'
 import type { CampanhasResponse } from '../services/campanhas'
-import { leadsService } from '../services/leads'
 import type { LeadWithCalls, Call } from '../types/lead'
+import { leadsService } from '../services/leads'
 import {
   Search,
   Filter,
   DollarSign,
   TrendingUp,
   Award,
-  Calendar,
+  Eye,
+  Check,
+  Edit2,
   X,
-  Phone,
   Smartphone,
   Mail,
   MapPin,
-  ExternalLink,
-  MessageSquare,
+  Calendar,
+  Phone,
   Volume2,
   Star,
-  Eye,
-  Edit2,
-  Check,
+  ExternalLink,
+  MessageSquare,
   ChevronLeft,
   ChevronRight,
   Sparkles
 } from 'lucide-react'
 
-// Constants for Kanban Stages
 const COLUMNS = [
-  { id: 'Novo', name: 'Novo', color: 'border-t-sky-500 dark:border-t-sky-400 bg-sky-50/20 dark:bg-sky-950/5 text-sky-700 dark:text-sky-400' },
-  { id: 'Sem Contato', name: 'Sem Contato', color: 'border-t-slate-400 dark:border-t-slate-500 bg-slate-50/20 dark:bg-slate-950/5 text-slate-600 dark:text-slate-400' },
-  { id: 'Contatado', name: 'Contatado', color: 'border-t-amber-500 dark:border-t-amber-400 bg-amber-50/20 dark:bg-amber-950/5 text-amber-700 dark:text-amber-400' },
-  { id: 'Qualificado', name: 'Qualificado', color: 'border-t-indigo-500 dark:border-t-indigo-400 bg-indigo-50/20 dark:bg-indigo-950/5 text-indigo-700 dark:text-indigo-400' },
-  { id: 'Reunião Agendada', name: 'Reunião Agendada', color: 'border-t-violet-500 dark:border-t-violet-400 bg-violet-50/20 dark:bg-violet-950/5 text-violet-700 dark:text-violet-400' },
-  { id: 'KYC/COF/Contrato', name: 'KYC/COF/Contrato', color: 'border-t-pink-500 dark:border-t-pink-400 bg-pink-50/20 dark:bg-pink-950/5 text-pink-700 dark:text-pink-400' },
-  { id: 'Ganho', name: 'Ganho', color: 'border-t-emerald-500 dark:border-t-emerald-400 bg-emerald-50/20 dark:bg-emerald-950/5 text-emerald-700 dark:text-emerald-400' },
-  { id: 'Perdido', name: 'Perdido', color: 'border-t-red-500 dark:border-t-red-400 bg-red-50/20 dark:bg-red-950/5 text-red-700 dark:text-red-400' }
+  { id: 'Novo', name: 'Novo' },
+  { id: 'Sem Contato', name: 'Sem Contato' },
+  { id: 'Contatado', name: 'Contatado' },
+  { id: 'Qualificado', name: 'Qualificado' },
+  { id: 'Reunião Agendada', name: 'Reunião Agendada' },
+  { id: 'KYC/COF/Contrato', name: 'KYC/COF/Contrato' },
+  { id: 'Ganho', name: 'Ganho' },
+  { id: 'Perdido', name: 'Perdido' }
 ]
 
-// Helper to format currency
+// Helpers (Format date, currency, durations)
 const formatCurrency = (val: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val)
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  }).format(val)
 }
 
-// Helper to format date strings
 const formatDate = (dateStr?: string | null) => {
   if (!dateStr) return '-'
   try {
@@ -65,7 +68,6 @@ const formatDate = (dateStr?: string | null) => {
   }
 }
 
-// Helper to format only date (no time)
 const formatDateOnly = (dateStr?: string | null) => {
   if (!dateStr) return '-'
   try {
@@ -82,7 +84,6 @@ const formatDateOnly = (dateStr?: string | null) => {
   }
 }
 
-// Helper to format duration in seconds
 const formatDuration = (seconds?: number | null) => {
   if (seconds === undefined || seconds === null) return '-'
   if (seconds === 0) return '0s'
@@ -92,29 +93,27 @@ const formatDuration = (seconds?: number | null) => {
   return `${s}s`
 }
 
-// Helper to get color classes for call status badge
 const getStatusBadgeStyle = (status: string) => {
   switch (status) {
     case 'Agendou Reunião':
-      return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40'
+      return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/30'
     case 'Lead Qualificado':
-      return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/40'
+      return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border border-slate-350 dark:border-slate-700'
     case 'Sem Contato Efetivo':
-      return 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40'
+      return 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/30'
     case 'Caixa Postal / Não Atendido':
-      return 'bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50'
+      return 'bg-slate-100 text-slate-650 dark:bg-slate-800/40 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50'
     case 'Sem Interesse':
-      return 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/40'
+      return 'bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400 border border-red-200/50 dark:border-red-900/30'
     case 'Lead Desqualificado':
-      return 'bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400 border border-orange-200 dark:border-orange-900/40'
+      return 'bg-orange-50 text-orange-700 dark:bg-orange-950/20 dark:text-orange-400 border border-orange-200/50 dark:border-orange-900/30'
     case 'Sem Ligação':
-      return 'bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border border-sky-200 dark:border-sky-900/40'
+      return 'bg-sky-50 text-sky-700 dark:bg-sky-950/20 dark:text-sky-400 border border-sky-200/50 dark:border-sky-900/30'
     default:
-      return 'bg-slate-50 text-slate-700 border border-slate-200'
+      return 'bg-slate-50 text-slate-700 dark:bg-slate-800/20 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
   }
 }
 
-// Helper to classify call on client
 function classifyCall(call: Call) {
   const resumo = (call.resumo_ligacao || '').toLowerCase()
   const tag = (call.tag || '').toLowerCase()
@@ -161,53 +160,24 @@ export default function NegociosPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Filters
   const [campaigns, setCampaigns] = useState<CampanhasResponse[]>([])
   const [selectedCampaign, setSelectedCampaign] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
 
-  // Editing values
   const [editingDealId, setEditingDealId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
 
-  // Details drawer
   const [selectedLead, setSelectedLead] = useState<LeadWithCalls | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
 
-  // Drag and drop state
-  const [draggedDealId, setDraggedDealId] = useState<string | null>(null)
-
-  // Search input debounce handler
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery)
-    }, 450)
-    return () => clearTimeout(handler)
-  }, [searchQuery])
-
-  // Fetch campaigns on mount
-  useEffect(() => {
-    campanhasService.getCampanhas()
-      .then((data) => {
-        setCampaigns(data || [])
-      })
-      .catch((err) => {
-        console.error('Error fetching campaigns:', err)
-      })
-  }, [])
-
-  // Fetch deals (negocios)
   const fetchDeals = () => {
     setLoading(true)
-    negociosService.getNegocios({
-      campaign_id: selectedCampaign !== 'all' ? selectedCampaign : undefined,
-      search: debouncedSearch ? debouncedSearch : undefined
-    })
+    negociosService.getNegocios()
       .then((data) => {
         setDeals(data || [])
+        setError(null)
         setLoading(false)
       })
       .catch((err) => {
@@ -219,99 +189,131 @@ export default function NegociosPage() {
 
   useEffect(() => {
     fetchDeals()
-  }, [selectedCampaign, debouncedSearch])
 
-  // Native drag & drop handlers
-  const handleDragStart = (e: React.DragEvent, dealId: string) => {
+    campanhasService.getCampanhas()
+      .then((data) => {
+        setCampaigns(data || [])
+      })
+      .catch((err) => {
+        console.error('Error fetching campaigns:', err)
+      })
+  }, [])
+
+  const filteredDeals = useMemo(() => {
+    return deals.filter((deal) => {
+      const matchesCampaign =
+        selectedCampaign === 'all' ||
+        deal.campaign_name === selectedCampaign
+
+      const query = searchQuery.toLowerCase().trim()
+      const matchesSearch =
+        !query ||
+        (deal.full_name || '').toLowerCase().includes(query) ||
+        (deal.phone || '').toLowerCase().includes(query) ||
+        (deal.email || '').toLowerCase().includes(query)
+
+      return matchesCampaign && matchesSearch
+    })
+  }, [deals, selectedCampaign, searchQuery])
+
+  const kpis = useMemo(() => {
+    const activeDeals = filteredDeals.filter((d) => d.etapa !== 'lost')
+    const totalValue = activeDeals.reduce((sum, d) => sum + (d.valor || 0), 0)
+    const totalCount = activeDeals.length
+
+    const wonCount = filteredDeals.filter((d) => d.etapa === 'qualified').length
+    const lostCount = filteredDeals.filter((d) => d.etapa === 'lost').length
+    const totalClosed = wonCount + lostCount
+    const conversionRate = totalClosed > 0 ? Math.round((wonCount / totalClosed) * 100) : 0
+
+    return { totalValue, totalCount, conversionRate }
+  }, [filteredDeals])
+
+  const handleDragStart = (e: DragEvent<HTMLDivElement>, dealId: string) => {
     e.dataTransfer.setData('text/plain', dealId)
-    setDraggedDealId(dealId)
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
   }
 
-  const handleDrop = (e: React.DragEvent, targetStage: string) => {
+  const handleDrop = async (e: DragEvent<HTMLDivElement>, targetStage: string) => {
     e.preventDefault()
-    const dealId = e.dataTransfer.getData('text/plain') || draggedDealId
+    const dealId = e.dataTransfer.getData('text/plain')
     if (!dealId) return
 
-    const deal = deals.find((d) => d.id === dealId)
-    if (!deal || deal.etapa === targetStage) return
+    const dealToMove = deals.find((d) => d.id === dealId)
+    if (!dealToMove || dealToMove.etapa === targetStage) return
 
-    // Optimistic UI Update
+    // Optimistic update
     const previousDeals = [...deals]
     setDeals((prev) =>
-      prev.map((d) => (d.id === dealId ? { ...d, etapa: targetStage, updated_at: new Date().toISOString() } : d))
+      prev.map((d) => (d.id === dealId ? { ...d, etapa: targetStage } : d))
     )
 
-    // Send PUT request to backend
-    negociosService.updateNegocio(dealId, {
-      etapa: targetStage,
-      valor: deal.valor || 0
-    }).catch((err) => {
-      console.error('Failed to move deal stage:', err)
-      setDeals(previousDeals) // Rollback on error
-    })
-
-    setDraggedDealId(null)
+    try {
+      await negociosService.updateNegocio(dealId, { etapa: targetStage, valor: dealToMove.valor })
+    } catch (err) {
+      console.error('Failed to update stage on server:', err)
+      setDeals(previousDeals)
+    }
   }
 
-  // Quick arrow stage mover
-  const moveDealStage = (deal: Negocio, direction: 'left' | 'right') => {
-    const currentIndex = COLUMNS.findIndex((c) => c.id === deal.etapa)
-    if (currentIndex === -1) return
+  const moveDealStage = async (deal: Negocio, direction: 'left' | 'right') => {
+    const currentIdx = COLUMNS.findIndex((col) => col.id === deal.etapa)
+    if (currentIdx === -1) return
 
-    let nextIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1
-    if (nextIndex < 0 || nextIndex >= COLUMNS.length) return
+    let nextIdx = currentIdx
+    if (direction === 'left') {
+      nextIdx = Math.max(0, currentIdx - 1)
+    } else {
+      nextIdx = Math.min(COLUMNS.length - 1, currentIdx + 1)
+    }
 
-    const targetStage = COLUMNS[nextIndex].id
+    if (currentIdx === nextIdx) return
+    const targetStage = COLUMNS[nextIdx].id
 
-    // Optimistic Update
+    const previousDeals = [...deals]
     setDeals((prev) =>
-      prev.map((d) => (d.id === deal.id ? { ...d, etapa: targetStage, updated_at: new Date().toISOString() } : d))
+      prev.map((d) => (d.id === deal.id ? { ...d, etapa: targetStage } : d))
     )
 
-    negociosService.updateNegocio(deal.id, {
-      etapa: targetStage,
-      valor: deal.valor || 0
-    }).catch((err) => {
+    try {
+      await negociosService.updateNegocio(deal.id, { etapa: targetStage, valor: deal.valor })
+    } catch (err) {
       console.error('Failed to update stage:', err)
-      fetchDeals() // Full reload on error
-    })
+      setDeals(previousDeals)
+    }
   }
 
-  // Value edit handlers
-  const handleStartEditValue = (deal: Negocio, e: React.MouseEvent) => {
+  const handleStartEditValue = (deal: Negocio, e: MouseEvent) => {
     e.stopPropagation()
     setEditingDealId(deal.id)
-    setEditingValue(String(deal.valor || ''))
+    setEditingValue(deal.valor > 0 ? String(deal.valor) : '')
   }
 
-  const handleSaveValue = (deal: Negocio) => {
-    const numValue = parseFloat(editingValue) || 0
-    if (deal.valor === numValue) {
+  const handleSaveValue = async (deal: Negocio) => {
+    const numValue = parseFloat(editingValue.replace(/[^\d.]/g, '')) || 0
+    if (numValue === deal.valor) {
       setEditingDealId(null)
       return
     }
 
-    // Optimistic Update
+    const previousDeals = [...deals]
     setDeals((prev) =>
       prev.map((d) => (d.id === deal.id ? { ...d, valor: numValue } : d))
     )
     setEditingDealId(null)
 
-    negociosService.updateNegocio(deal.id, {
-      etapa: deal.etapa,
-      valor: numValue
-    }).catch((err) => {
-      console.error('Failed to update value:', err)
-      fetchDeals()
-    })
+    try {
+      await negociosService.updateNegocio(deal.id, { etapa: deal.etapa, valor: numValue })
+    } catch (err) {
+      console.error('Failed to save deal value:', err)
+      setDeals(previousDeals)
+    }
   }
 
-  // Drawer detail handlers
-  const handleOpenDetails = (phone: string, e: React.MouseEvent) => {
+  const handleOpenDetails = (phone: string, e: MouseEvent) => {
     e.stopPropagation()
     setDrawerOpen(true)
     setDetailsLoading(true)
@@ -324,7 +326,7 @@ export default function NegociosPage() {
         setDetailsLoading(false)
       })
       .catch((err) => {
-        console.error('Error fetching lead details:', err)
+        console.error('Error fetching details:', err)
         setDetailsError('Erro ao carregar detalhes do lead. Tente novamente.')
         setDetailsLoading(false)
       })
@@ -342,59 +344,42 @@ export default function NegociosPage() {
     return `https://wa.me/${whatsappUrl}`
   }
 
-  // Calculate Funnel KPI Totals
-  const kpis = useMemo(() => {
-    const totalCount = deals.length
-    const totalValue = deals.reduce((sum, d) => sum + (d.valor || 0), 0)
-    
-    // Won deals (etapa === 'Ganho')
-    const wonDeals = deals.filter((d) => d.etapa === 'Ganho')
-    const wonCount = wonDeals.length
-    const conversionRate = totalCount > 0 ? Math.round((wonCount / totalCount) * 100) : 0
-    
-    // Scheduled meetings count
-    const meetingsCount = deals.filter((d) => d.status_chamada === 'Agendou Reunião').length
-
-    return {
-      totalCount,
-      totalValue,
-      conversionRate,
-      meetingsCount
-    }
-  }, [deals])
-
-  // Group deals by column stage
   const dealsByColumn = useMemo(() => {
-    const groups: Record<string, Negocio[]> = {}
-    COLUMNS.forEach((c) => {
-      groups[c.id] = []
-    })
-    deals.forEach((d) => {
-      if (groups[d.etapa]) {
-        groups[d.etapa].push(d)
+    const groups: { [key: string]: Negocio[] } = {
+      'Novo': [],
+      'Sem Contato': [],
+      'Contatado': [],
+      'Qualificado': [],
+      'Reunião Agendada': [],
+      'KYC/COF/Contrato': [],
+      'Ganho': [],
+      'Perdido': [],
+    }
+    filteredDeals.forEach((deal) => {
+      if (groups[deal.etapa] !== undefined) {
+        groups[deal.etapa].push(deal)
       } else {
-        // Fallback to NOVO if stage is unrecognized
-        groups['Novo'].push(d)
+        groups['Novo'].push(deal)
       }
     })
     return groups
-  }, [deals])
+  }, [filteredDeals])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 transition-colors duration-150">
       {/* Top Title Section */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--text)]">Funil de Negócios</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <h1 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">Funil de Negócios</h1>
+          <p className="text-xs text-[var(--text-secondary)]">
             Acompanhe o funil de vendas. Arraste e solte os cartões para mudar a etapa do negócio.
           </p>
         </div>
         <button
           onClick={fetchDeals}
-          className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] bg-[var(--card-bg)] hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium rounded-lg shadow-sm transition-colors"
+          className="flex items-center gap-1.5 bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--surface-raised)] text-sm h-8 px-3 rounded-md transition-colors duration-150"
         >
-          <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <TrendingUp className="h-4 w-4 stroke-[1.5] text-[var(--text-secondary)]" />
           <span>Atualizar Funil</span>
         </button>
       </div>
@@ -402,65 +387,65 @@ export default function NegociosPage() {
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* KPI 1: Value */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm flex items-center justify-between">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
           <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Valor do Pipeline</span>
-            <h3 className="text-2xl font-bold text-[var(--text)]">{formatCurrency(kpis.totalValue)}</h3>
-            <p className="text-[11px] text-slate-500">Soma estimada de negócios</p>
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Valor do Pipeline</span>
+            <h3 className="text-2xl font-semibold text-[var(--text-primary)]">{formatCurrency(kpis.totalValue)}</h3>
+            <p className="text-xs text-[var(--text-secondary)]">Soma estimada de negócios</p>
           </div>
-          <div className="h-12 w-12 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-            <DollarSign className="h-6 w-6" />
+          <div className="h-10 w-10 rounded-md bg-[var(--surface-raised)] flex items-center justify-center text-[var(--text-primary)]">
+            <DollarSign className="h-4 w-4 stroke-[1.5]" />
           </div>
         </div>
 
         {/* KPI 2: Counts */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm flex items-center justify-between">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
           <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Negócios Ativos</span>
-            <h3 className="text-2xl font-bold text-[var(--text)]">{kpis.totalCount}</h3>
-            <p className="text-[11px] text-slate-500">Contatos mapeados no funil</p>
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Negócios Ativos</span>
+            <h3 className="text-2xl font-semibold text-[var(--text-primary)]">{kpis.totalCount}</h3>
+            <p className="text-xs text-[var(--text-secondary)]">Contatos mapeados no funil</p>
           </div>
-          <div className="h-12 w-12 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-            <TrendingUp className="h-6 w-6" />
+          <div className="h-10 w-10 rounded-md bg-[var(--surface-raised)] flex items-center justify-center text-[var(--text-primary)]">
+            <TrendingUp className="h-4 w-4 stroke-[1.5]" />
           </div>
         </div>
 
         {/* KPI 3: Conversion Rate */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-5 shadow-sm flex items-center justify-between">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
           <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Taxa de Conversão</span>
-            <h3 className="text-2xl font-bold text-[var(--text)]">{kpis.conversionRate}%</h3>
-            <div className="w-28 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Taxa de Conversão</span>
+            <h3 className="text-2xl font-semibold text-[var(--text-primary)]">{kpis.conversionRate}%</h3>
+            <div className="w-24 bg-[var(--border)] h-1 rounded-full overflow-hidden mt-1.5">
               <div
-                className="bg-emerald-600 dark:bg-emerald-500 h-full rounded-full"
+                className="bg-[var(--accent)] h-full rounded-full"
                 style={{ width: `${kpis.conversionRate}%` }}
               ></div>
             </div>
           </div>
-          <div className="h-12 w-12 rounded-lg bg-pink-50 dark:bg-pink-950/30 flex items-center justify-center text-pink-600 dark:text-pink-400">
-            <Award className="h-6 w-6" />
+          <div className="h-10 w-10 rounded-md bg-[var(--surface-raised)] flex items-center justify-center text-[var(--text-primary)]">
+            <Award className="h-4 w-4 stroke-[1.5]" />
           </div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 flex flex-col md:flex-row gap-3 items-center transition-colors duration-150">
         {/* Search */}
         <div className="relative w-full md:flex-1">
-          <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-[var(--text-tertiary)] stroke-[1.5]" />
           <input
             type="text"
             placeholder="Buscar negócio por nome, telefone, e-mail..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-[var(--border)] dark:bg-slate-900 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            className="w-full h-8 pl-8 pr-8 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="absolute right-2.5 top-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4 stroke-[1.5]" />
             </button>
           )}
         </div>
@@ -470,7 +455,7 @@ export default function NegociosPage() {
           <select
             value={selectedCampaign}
             onChange={(e) => setSelectedCampaign(e.target.value)}
-            className="w-full pl-3 pr-8 py-2 border border-[var(--border)] dark:bg-slate-900 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            className="w-full h-8 pl-3 pr-8 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] appearance-none transition-colors duration-150"
           >
             <option value="all">Todas as Campanhas</option>
             {campaigns.map((c) => (
@@ -479,22 +464,22 @@ export default function NegociosPage() {
               </option>
             ))}
           </select>
-          <Filter className="absolute right-3 top-3 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+          <Filter className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[var(--text-tertiary)] stroke-[1.5] pointer-events-none" />
         </div>
       </div>
 
       {/* Kanban Board */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 space-y-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
-          <span className="text-sm font-medium text-slate-500">Carregando funil de vendas...</span>
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
+          <span className="text-xs text-[var(--text-secondary)]">Carregando funil de vendas...</span>
         </div>
       ) : error ? (
-        <div className="text-center py-20 bg-[var(--card-bg)] border border-[var(--border)] rounded-xl shadow-sm">
-          <p className="text-red-500 font-semibold">{error}</p>
+        <div className="text-center py-20 bg-[var(--surface)] border border-[var(--border)] rounded-lg">
+          <p className="text-red-500 font-semibold text-sm">{error}</p>
           <button
             onClick={fetchDeals}
-            className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg"
+            className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium rounded-md transition-colors duration-150"
           >
             Tentar Novamente
           </button>
@@ -510,26 +495,26 @@ export default function NegociosPage() {
                 key={column.id}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, column.id)}
-                className="w-80 shrink-0 flex flex-col bg-slate-100/70 dark:bg-slate-900/40 border border-[var(--border)] rounded-xl max-h-[700px] overflow-hidden"
+                className="w-80 shrink-0 flex flex-col bg-[var(--background)] border border-[var(--border)] rounded-lg max-h-[700px] overflow-hidden transition-colors duration-150"
               >
                 {/* Column Header */}
-                <div className={`p-4 border-t-4 ${column.color} border-b border-[var(--border)] bg-slate-50/80 dark:bg-slate-900/60 flex flex-col gap-1.5`}>
+                <div className="p-3 border-b border-[var(--border)] bg-[var(--surface-raised)] flex flex-col gap-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider">{column.name}</span>
-                    <span className="text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-semibold uppercase tracking-widest text-[var(--text-secondary)]">{column.name}</span>
+                    <span className="text-xs bg-[var(--surface)] text-[var(--text-secondary)] px-2 py-0.5 rounded-full border border-[var(--border)]">
                       {columnDeals.length}
                     </span>
                   </div>
-                  <div className="text-xs font-semibold text-slate-500">
+                  <div className="text-xs text-[var(--text-secondary)]">
                     Soma: {formatCurrency(columnTotalValue)}
                   </div>
                 </div>
 
                 {/* Column Card Body */}
-                <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[450px]">
+                <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[450px]">
                   {columnDeals.length === 0 ? (
-                    <div className="h-full flex items-center justify-center py-20 border border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
-                      <span className="text-xs text-slate-400">Arraste um lead para cá</span>
+                    <div className="h-full flex items-center justify-center py-20 border border-dashed border-[var(--border)] rounded-md">
+                      <span className="text-xs text-[var(--text-tertiary)]">Arraste um lead para cá</span>
                     </div>
                   ) : (
                     columnDeals.map((deal: Negocio) => {
@@ -543,17 +528,17 @@ export default function NegociosPage() {
                           key={deal.id}
                           draggable
                           onDragStart={(e) => handleDragStart(e, deal.id)}
-                          className="bg-[var(--card-bg)] border border-[var(--border)] hover:border-slate-350 dark:hover:border-slate-700 rounded-lg p-3.5 shadow-sm space-y-3 cursor-grab active:cursor-grabbing hover:shadow-md transition duration-150 relative group"
+                          className="bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--border-strong)] rounded-md p-3 space-y-2.5 cursor-grab active:cursor-grabbing transition-all duration-150 relative group"
                         >
                           {/* Top: Name & Quick view */}
                           <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2.5">
-                              <div className="h-7 w-7 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center shrink-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="h-6 w-6 rounded-full bg-[var(--surface-raised)] text-[var(--text-primary)] border border-[var(--border)] text-[10px] font-bold flex items-center justify-center shrink-0">
                                 {initials}
                               </div>
                               <h4
                                 onClick={(e) => handleOpenDetails(deal.phone, e)}
-                                className="text-xs font-bold text-[var(--text)] line-clamp-1 hover:text-indigo-600 cursor-pointer transition-colors"
+                                className="text-xs font-semibold text-[var(--text-primary)] line-clamp-1 hover:text-[var(--accent-hover)] cursor-pointer transition-colors"
                               >
                                 {deal.full_name || 'Sem Nome'}
                               </h4>
@@ -561,36 +546,36 @@ export default function NegociosPage() {
 
                             <button
                               onClick={(e) => handleOpenDetails(deal.phone, e)}
-                              className="p-1 text-slate-450 hover:text-indigo-600 dark:hover:text-indigo-400 rounded transition-colors shrink-0"
+                              className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded transition-colors shrink-0"
                               title="Visualizar Detalhes"
                             >
-                              <Eye className="h-3.5 w-3.5" />
+                              <Eye className="h-3.5 w-3.5 stroke-[1.5]" />
                             </button>
                           </div>
 
                           {/* Campaign Label */}
-                          <div className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium px-2 py-0.5 rounded border border-slate-250/20 dark:border-slate-700/50 block w-fit truncate max-w-full">
+                          <div className="text-[10px] bg-[var(--surface-raised)] text-[var(--text-secondary)] px-2 py-0.5 rounded border border-[var(--border)] block w-fit truncate max-w-full">
                             {deal.campaign_name || 'Campanha Direta'}
                           </div>
 
                           {/* Call classification tag */}
                           <div className="flex items-center justify-between">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold tracking-wide ${getStatusBadgeStyle(deal.status_chamada)}`}>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide ${getStatusBadgeStyle(deal.status_chamada)}`}>
                               {deal.status_chamada}
                             </span>
-                            <span className="text-[10px] text-slate-400">{deal.platform || 'Meta'}</span>
+                            <span className="text-[10px] text-[var(--text-secondary)]">{deal.platform || 'Meta'}</span>
                           </div>
 
                           {/* Editable Value Box */}
-                          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                          <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
                             {isEditingValue ? (
                               <div className="flex items-center gap-1.5 w-full" onClick={(e) => e.stopPropagation()}>
-                                <span className="text-xs text-slate-400 font-bold">R$</span>
+                                <span className="text-xs text-[var(--text-secondary)] font-bold">R$</span>
                                 <input
                                   type="text"
                                   value={editingValue}
                                   onChange={(e) => setEditingValue(e.target.value)}
-                                  className="w-20 px-1 py-0.5 text-xs border border-indigo-500 rounded bg-slate-50 dark:bg-slate-900 focus:outline-none text-[var(--text)] font-semibold"
+                                  className="w-16 h-6 px-1.5 text-xs border border-[var(--accent)] rounded bg-[var(--surface)] focus:outline-none text-[var(--text-primary)] font-semibold"
                                   autoFocus
                                   placeholder="0"
                                   onKeyDown={(e) => {
@@ -600,25 +585,25 @@ export default function NegociosPage() {
                                 />
                                 <button
                                   onClick={() => handleSaveValue(deal)}
-                                  className="p-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded"
+                                  className="p-0.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded"
                                 >
-                                  <Check className="h-3 w-3" />
+                                  <Check className="h-3 w-3 stroke-[1.5]" />
                                 </button>
                                 <button
                                   onClick={() => setEditingDealId(null)}
-                                  className="p-0.5 bg-slate-300 hover:bg-slate-400 text-slate-700 rounded"
+                                  className="p-0.5 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] rounded"
                                 >
-                                  <X className="h-3 w-3" />
+                                  <X className="h-3 w-3 stroke-[1.5]" />
                                 </button>
                               </div>
                             ) : (
                               <div
                                 onClick={(e) => handleStartEditValue(deal, e)}
-                                className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 px-1.5 py-0.5 rounded transition duration-150"
+                                className="flex items-center gap-1 cursor-pointer text-xs font-bold text-emerald-600 dark:text-emerald-450 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 px-1.5 py-0.5 rounded transition duration-150"
                                 title="Clique para editar o valor"
                               >
                                 <span>{deal.valor > 0 ? formatCurrency(deal.valor) : 'Definir Valor'}</span>
-                                <Edit2 className="h-2.5 w-2.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <Edit2 className="h-2.5 w-2.5 text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity" />
                               </div>
                             )}
 
@@ -629,22 +614,22 @@ export default function NegociosPage() {
                                   e.stopPropagation()
                                   moveDealStage(deal, 'left')
                                 }}
-                                className="p-0.5 border border-slate-200 dark:border-slate-800 rounded bg-slate-50 dark:bg-slate-900 text-slate-400 hover:text-[var(--text)] disabled:opacity-30 disabled:hover:text-slate-400"
+                                className="p-0.5 border border-[var(--border)] rounded bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30 transition-colors"
                                 disabled={column.id === COLUMNS[0].id}
                                 title="Mover para Etapa Anterior"
                               >
-                                <ChevronLeft className="h-3 w-3" />
+                                <ChevronLeft className="h-3 w-3 stroke-[1.5]" />
                               </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   moveDealStage(deal, 'right')
                                 }}
-                                className="p-0.5 border border-slate-200 dark:border-slate-800 rounded bg-slate-50 dark:bg-slate-900 text-slate-400 hover:text-[var(--text)] disabled:opacity-30 disabled:hover:text-slate-400"
+                                className="p-0.5 border border-[var(--border)] rounded bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30 transition-colors"
                                 disabled={column.id === COLUMNS[COLUMNS.length - 1].id}
                                 title="Mover para Próxima Etapa"
                               >
-                                <ChevronRight className="h-3 w-3" />
+                                <ChevronRight className="h-3 w-3 stroke-[1.5]" />
                               </button>
                             </div>
                           </div>
@@ -663,157 +648,155 @@ export default function NegociosPage() {
       {drawerOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden">
           <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+            className="absolute inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
             onClick={closeDrawer}
           />
 
           <div className="absolute inset-y-0 right-0 flex max-w-full pl-10">
-            <div className="w-screen max-w-xl sm:max-w-2xl bg-[var(--card-bg)] border-l border-[var(--border)] shadow-2xl flex flex-col h-full overflow-hidden text-[var(--text)]">
+            <div className="w-screen max-w-xl sm:max-w-2xl bg-[var(--surface)] border-l border-[var(--border)] flex flex-col h-full overflow-hidden text-[var(--text-primary)] transition-colors duration-150">
               {/* Header */}
-              <div className="p-6 border-b border-[var(--border)] bg-slate-50/50 dark:bg-slate-800/10 flex items-center justify-between">
+              <div className="p-4 border-b border-[var(--border)] bg-[var(--surface-raised)] flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-bold">Histórico do Lead</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Detalhes do lead e linha do tempo de ligações com gravações e resumos de IA.
+                  <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">Histórico do Lead</h2>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Detalhes do lead e linha do tempo de ligações.
                   </p>
                 </div>
                 <button
                   onClick={closeDrawer}
-                  className="p-1.5 rounded-lg border border-[var(--border)] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="p-1 rounded-md border border-[var(--border)] bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-150"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4 stroke-[1.5]" />
                 </button>
               </div>
 
               {/* Drawer Body */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {detailsLoading ? (
                   <div className="flex flex-col items-center justify-center py-20 space-y-4 h-full">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
-                    <span className="text-sm font-medium text-slate-500">Buscando histórico do lead...</span>
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
+                    <span className="text-xs text-[var(--text-secondary)]">Buscando histórico do lead...</span>
                   </div>
                 ) : detailsError ? (
                   <div className="text-center py-10">
-                    <p className="text-red-500 text-sm font-semibold">{detailsError}</p>
+                    <p className="text-red-500 text-xs font-semibold">{detailsError}</p>
                     <button
                       onClick={(e) => handleOpenDetails(selectedLead?.phone || '', e)}
-                      className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg"
+                      className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-medium rounded-md transition-colors duration-150"
                     >
                       Recarregar
                     </button>
                   </div>
                 ) : selectedLead ? (
                   <>
-                    <div className="bg-slate-50/60 dark:bg-slate-800/10 border border-[var(--border)] rounded-xl p-5 space-y-4">
+                    <div className="bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4 space-y-3 transition-colors duration-150">
                       <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-bold flex items-center justify-center text-base shrink-0">
+                        <div className="h-10 w-10 rounded-full bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] font-bold flex items-center justify-center text-sm shrink-0">
                           {selectedLead.full_name
                             ? selectedLead.full_name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
                             : 'L'}
                         </div>
                         <div>
-                          <h3 className="text-base font-bold">{selectedLead.full_name || 'Sem Nome'}</h3>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeStyle(selectedLead.status_chamada)} mt-1`}>
+                          <h3 className="text-sm font-semibold text-[var(--text-primary)]">{selectedLead.full_name || 'Sem Nome'}</h3>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${getStatusBadgeStyle(selectedLead.status_chamada)} mt-1`}>
                             {selectedLead.status_chamada}
                           </span>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs border-t border-[var(--border)] text-slate-600 dark:text-slate-300">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2.5 border-t border-[var(--border)] text-xs text-[var(--text-secondary)]">
                         <div className="flex items-center gap-2">
-                          <Smartphone className="h-3.5 w-3.5 text-slate-400" />
+                          <Smartphone className="h-3.5 w-3.5 stroke-[1.5]" />
                           <span>{selectedLead.phone || 'Sem telefone'}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Mail className="h-3.5 w-3.5 text-slate-400" />
+                          <Mail className="h-3.5 w-3.5 stroke-[1.5]" />
                           <span className="truncate">{selectedLead.email || 'Sem e-mail'}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                          <MapPin className="h-3.5 w-3.5 stroke-[1.5]" />
                           <span>{selectedLead.city || 'Cidade desconhecida'}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                          <Calendar className="h-3.5 w-3.5 stroke-[1.5]" />
                           <span>Cadastrado em: {formatDateOnly(selectedLead.created_time)}</span>
                         </div>
                         <div className="flex items-center gap-2 sm:col-span-2">
-                          <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <FileText className="h-3.5 w-3.5 stroke-[1.5] shrink-0" />
                           <span className="truncate">Campanha: {selectedLead.campaign_name} ({selectedLead.platform})</span>
                         </div>
                       </div>
 
-                      <div className="pt-2">
+                      <div className="pt-1">
                         <a
                           href={getWhatsAppLink(selectedLead.phone)}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex items-center justify-center gap-2 w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors"
+                          className="flex items-center justify-center gap-1.5 w-full h-8 bg-[#22c55e] hover:bg-[#16a34a] text-white font-medium text-xs rounded-md transition-colors duration-150"
                         >
-                          <MessageSquare className="h-4 w-4" />
+                          <MessageSquare className="h-4 w-4 stroke-[1.5]" />
                           <span>Abrir WhatsApp ({selectedLead.phone})</span>
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="h-3 w-3 stroke-[1.5]" />
                         </a>
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                        <Volume2 className="h-4 w-4 text-indigo-500" />
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-semibold uppercase tracking-widest text-[var(--text-secondary)] flex items-center gap-1.5">
+                        <Volume2 className="h-4 w-4 stroke-[1.5]" />
                         <span>Histórico de Chamadas ({selectedLead.chamadas?.length || 0})</span>
                       </h4>
 
                       {!selectedLead.chamadas || selectedLead.chamadas.length === 0 ? (
-                        <div className="text-center py-10 border border-dashed border-[var(--border)] rounded-xl bg-slate-50/30 dark:bg-slate-900/10">
-                          <Phone className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                          <p className="text-xs text-slate-500">Este lead ainda não recebeu nenhuma ligação de contato.</p>
+                        <div className="text-center py-10 border border-dashed border-[var(--border)] rounded-lg bg-[var(--surface-raised)]">
+                          <Phone className="h-6 w-6 text-[var(--text-tertiary)] mx-auto mb-2 stroke-[1.5]" />
+                          <p className="text-xs text-[var(--text-secondary)] font-normal">Este lead ainda não recebeu nenhuma ligação de contato.</p>
                         </div>
                       ) : (
-                        <div className="relative pl-6 border-l border-slate-200 dark:border-slate-800 space-y-6 ml-3">
+                        <div className="relative pl-4 border-l border-[var(--border)] space-y-4 ml-2">
                           {selectedLead.chamadas.map((call, idx) => {
                             const { classif, subcat, score } = classifyCall(call)
                             return (
                               <div key={call.id || idx} className="relative">
-                                <div className="absolute -left-[31px] top-1.5 h-4 w-4 rounded-full border-2 border-white dark:border-slate-900 bg-indigo-600 dark:bg-indigo-400 flex items-center justify-center shadow-sm">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-white"></span>
-                                </div>
+                                <div className="absolute -left-[23px] top-1.5 h-2.5 w-2.5 rounded-full border border-[var(--border)] bg-[var(--accent)] animate-none"></div>
 
-                                <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-xl p-4 shadow-sm space-y-3 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/60 pb-2">
-                                    <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-md p-3.5 space-y-2 transition-colors duration-150">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-[var(--border)] pb-2">
+                                    <div className="text-xs font-semibold text-[var(--text-primary)]">
                                       {formatDate(call.data_hora)}
                                     </div>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${getStatusBadgeStyle(classif)}`}>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${getStatusBadgeStyle(classif)}`}>
                                         {classif}
                                       </span>
                                       {subcat && subcat !== classif && (
-                                        <span className="text-[10px] text-slate-450 dark:text-slate-500 font-medium">({subcat})</span>
+                                        <span className="text-[10px] text-[var(--text-secondary)]">({subcat})</span>
                                       )}
                                       {score && (
                                         <div className="flex items-center gap-0.5 text-amber-500 bg-amber-50 dark:bg-amber-950/20 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200/50">
-                                          <Star className="h-3 w-3 fill-amber-500" />
+                                          <Star className="h-3 w-3 fill-amber-500 stroke-[1.5]" />
                                           <span>{score}/8</span>
                                         </div>
                                       )}
                                     </div>
                                   </div>
 
-                                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
+                                  <div className="grid grid-cols-2 gap-2 text-xs text-[var(--text-secondary)]">
                                     <div>
-                                      Duração: <span className="font-semibold text-slate-600 dark:text-slate-300">{formatDuration(call.duracao_segundos)}</span>
+                                      Duração: <span className="font-semibold text-[var(--text-primary)]">{formatDuration(call.duracao_segundos)}</span>
                                     </div>
                                     <div className="text-right">
-                                      Origem: <span className="font-semibold text-slate-600 dark:text-slate-300">{call.source_file ? call.source_file.replace('.csv', '') : 'Manual'}</span>
+                                      Origem: <span className="font-semibold text-[var(--text-primary)]">{call.source_file ? call.source_file.replace('.csv', '') : 'Manual'}</span>
                                     </div>
                                   </div>
 
                                   {call.resumo_ligacao && (
-                                    <div className="bg-indigo-50/20 dark:bg-indigo-950/10 border-l-2 border-indigo-400/80 p-3 rounded-r-lg space-y-1">
-                                      <div className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1">
-                                        <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                                    <div className="bg-[var(--surface-raised)] border-l-2 border-[var(--accent)] p-2.5 rounded-r-md space-y-1">
+                                      <div className="text-[10px] font-semibold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-1">
+                                        <Sparkles className="h-3.5 w-3.5 text-[var(--text-secondary)] stroke-[1.5]" />
                                         <span>Resumo de IA</span>
                                       </div>
-                                      <p className="text-xs italic text-slate-600 dark:text-slate-300 leading-relaxed">
+                                      <p className="text-xs italic text-[var(--text-primary)] leading-relaxed">
                                         "{call.resumo_ligacao}"
                                       </p>
                                     </div>
@@ -824,7 +807,7 @@ export default function NegociosPage() {
                                       {call.tag.split(',').map((t, tIdx) => (
                                         <span
                                           key={tIdx}
-                                          className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded"
+                                          className="text-[10px] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded"
                                         >
                                           {t.trim()}
                                         </span>
@@ -833,21 +816,22 @@ export default function NegociosPage() {
                                   )}
 
                                   {call.anotacoes && (
-                                    <div className="text-xs bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded border border-slate-200/50 dark:border-slate-800 text-slate-600 dark:text-slate-300">
+                                    <div className="text-xs bg-[var(--surface-raised)] p-2 rounded border border-[var(--border)] text-[var(--text-primary)]">
                                       <span className="font-semibold block mb-0.5">Anotações:</span>
                                       {call.anotacoes}
                                     </div>
                                   )}
 
+                                  {/* Audio Player */}
                                   {call.link_gravacao && (
-                                    <div className="pt-2">
-                                      <label className="text-[10px] font-semibold text-slate-400 block mb-1">
+                                    <div className="pt-1">
+                                      <label className="text-[10px] font-semibold text-[var(--text-secondary)] block mb-1">
                                         Gravação do Contato
                                       </label>
                                       <audio
                                         controls
                                         src={call.link_gravacao}
-                                        className="w-full h-8 outline-none rounded bg-slate-50 dark:bg-slate-900 border border-[var(--border)]"
+                                        className="w-full h-8 outline-none rounded bg-[var(--surface-raised)] border border-[var(--border)]"
                                       />
                                     </div>
                                   )}
@@ -866,5 +850,27 @@ export default function NegociosPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function FileText(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="24"
+      height="24"
+      stroke="currentColor"
+      strokeWidth="2"
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="M10 9H8" />
+      <path d="M16 13H8" />
+      <path d="M16 17H8" />
+    </svg>
   )
 }

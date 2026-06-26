@@ -5,16 +5,21 @@ export default {
   theme: {
     extend: {
       colors: {
-        accent: 'var(--accent)',
-        ice: 'var(--ice)',
-        'card-bg': 'var(--card-bg)',
-        text: 'var(--text)',
+        background: 'var(--background)',
+        surface: 'var(--surface)',
+        'surface-raised': 'var(--surface-raised)',
         border: 'var(--border)',
+        'border-strong': 'var(--border-strong)',
+        'text-primary': 'var(--text-primary)',
+        'text-secondary': 'var(--text-secondary)',
+        'text-tertiary': 'var(--text-tertiary)',
+        accent: 'var(--accent)',
+        'accent-hover': 'var(--accent-hover)',
+        danger: 'var(--danger)',
+        success: 'var(--success)',
+        warning: 'var(--warning)',
       },
     },
   },
   plugins: [],
 }
-
-
-
