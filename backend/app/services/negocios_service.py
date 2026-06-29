@@ -2,7 +2,7 @@ import datetime
 from app.services.database import query
 import app.services.leads_service as leads_service
 
-async def get_negocios(campaign_id=None, search=None) -> list[dict]:
+async def get_negocios(campaign_id=None, search=None, user=None) -> list[dict]:
     """
     Retrieves all leads mapped as deals, with their saved stage and deal values.
     Defaults staging dynamically based on latest call metrics.
@@ -18,6 +18,10 @@ async def get_negocios(campaign_id=None, search=None) -> list[dict]:
         s_term = f"%{search.strip()}%"
         conditions.append("(l.full_name LIKE ? OR l.phone LIKE ? OR l.email LIKE ? OR l.campaign_name LIKE ? OR l.city LIKE ?)")
         params.extend([s_term, s_term, s_term, s_term, s_term])
+        
+    if user and user.get("role") == "consultor":
+        conditions.append("(n.usuario_email = ? OR n.usuario_email IS NULL)")
+        params.append(user["email"])
         
     where_clause = ""
     if conditions:

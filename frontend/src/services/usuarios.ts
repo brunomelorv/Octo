@@ -1,25 +1,28 @@
 import api from './api'
 
+export type UserRole = 'master' | 'head' | 'consultor' | 'administrativo'
+
 export interface Usuario {
   id: string
   email: string
   name: string
-  role: 'admin' | 'user'
+  role: UserRole
   active: boolean
   must_change_password: boolean
+  avatar_base64?: string | null
 }
 
 export interface CreateUsuarioPayload {
   email: string
   name: string
   password: string
-  role: 'admin' | 'user'
+  role: UserRole
 }
 
 export interface UpdateUsuarioPayload {
   email?: string
   name?: string
-  role?: 'admin' | 'user'
+  role?: UserRole
   password?: string
   active?: boolean
   must_change_password?: boolean

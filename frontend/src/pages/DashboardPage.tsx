@@ -339,7 +339,7 @@ export default function DashboardPage() {
         <p className="text-red-500 font-semibold text-sm mb-4">{error}</p>
         <button
           onClick={() => window.location.reload()}
-          className="h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium rounded-md transition-colors duration-150"
+          className="h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-medium rounded-md transition-colors duration-150"
         >
           Recarregar Página
         </button>
@@ -400,7 +400,7 @@ export default function DashboardPage() {
                   onClick={() => setDateFilter(btn.value)}
                   className={`text-xs h-7 px-3 rounded-full border transition-colors duration-150 ${
                     dateFilter === btn.value
-                      ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
+                      ? 'bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-fg)]'
                       : 'bg-transparent border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-raised)]'
                   }`}
                 >

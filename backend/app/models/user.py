@@ -4,15 +4,17 @@ from pydantic import BaseModel
 
 
 class UserRole(str, Enum):
-    admin = "admin"
-    user = "user"
+    master = "master"
+    head = "head"
+    consultor = "consultor"
+    administrativo = "administrativo"
 
 
 class UserCreate(BaseModel):
     email: str
     password: str
     name: str
-    role: UserRole = UserRole.user
+    role: UserRole = UserRole.consultor
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None
@@ -21,6 +23,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
     active: Optional[bool] = None
     must_change_password: Optional[bool] = None
+    avatar_base64: Optional[str] = None
 
 class PasswordChange(BaseModel):
     current_password: str
@@ -37,6 +40,7 @@ class UserResponse(BaseModel):
     role: str
     active: bool = True
     must_change_password: bool = False
+    avatar_base64: Optional[str] = None
 
     class Config:
         from_attributes = True

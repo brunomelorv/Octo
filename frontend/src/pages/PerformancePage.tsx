@@ -367,7 +367,7 @@ export default function PerformancePage() {
             <p className="text-red-500 font-semibold text-sm">{error}</p>
             <button
               onClick={fetchHistory}
-              className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium rounded-md transition-colors duration-150"
+              className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-medium rounded-md transition-colors duration-150"
             >
               Tentar novamente
             </button>

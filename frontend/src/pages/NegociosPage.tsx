@@ -479,7 +479,7 @@ export default function NegociosPage() {
           <p className="text-red-500 font-semibold text-sm">{error}</p>
           <button
             onClick={fetchDeals}
-            className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium rounded-md transition-colors duration-150"
+            className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-medium rounded-md transition-colors duration-150"
           >
             Tentar Novamente
           </button>
@@ -585,7 +585,7 @@ export default function NegociosPage() {
                                 />
                                 <button
                                   onClick={() => handleSaveValue(deal)}
-                                  className="p-0.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded"
+                                  className="p-0.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] rounded"
                                 >
                                   <Check className="h-3 w-3 stroke-[1.5]" />
                                 </button>
@@ -682,7 +682,7 @@ export default function NegociosPage() {
                     <p className="text-red-500 text-xs font-semibold">{detailsError}</p>
                     <button
                       onClick={(e) => handleOpenDetails(selectedLead?.phone || '', e)}
-                      className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-medium rounded-md transition-colors duration-150"
+                      className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-xs font-medium rounded-md transition-colors duration-150"
                     >
                       Recarregar
                     </button>

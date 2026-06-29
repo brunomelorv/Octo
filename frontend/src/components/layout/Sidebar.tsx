@@ -11,13 +11,21 @@ import {
   BarChart3,
   TrendingUp,
   UserCog,
-  MoreHorizontal
+  MoreHorizontal,
+  Settings,
+  Palette,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
+import { useAuthStore } from '../../store/authStore'
 import { authService } from '../../services/auth'
+
+import { useConfigStore } from '../../store/configStore'
 
 export default function Sidebar() {
   const { user, logout } = useAuth()
+  const config = useConfigStore((state) => state.config)
   const [passwordOpen, setPasswordOpen] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -26,37 +34,95 @@ export default function Sidebar() {
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null)
   const [savingPassword, setSavingPassword] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({ leads: true })
 
   const navItems = [
     {
       name: 'Dashboard',
       path: '/dashboard',
+      id: 'dashboard',
       icon: <LayoutDashboard className="h-4 w-4 stroke-[1.5]" />,
     },
     {
       name: 'Leads',
       path: '/leads',
+      id: 'leads',
       icon: <Users className="h-4 w-4 stroke-[1.5]" />,
+      subItems: [
+        {
+          name: 'Importar Leads',
+          path: '/importar-leads',
+          id: 'importar_leads',
+        },
+        {
+          name: 'Distribuição',
+          path: '/distribuicao-leads',
+          id: 'distribuicao_leads',
+        },
+      ]
     },
     {
       name: 'Negócios',
       path: '/negocios',
+      id: 'negocios',
       icon: <BarChart3 className="h-4 w-4 stroke-[1.5]" />,
     },
     {
       name: 'Performance',
       path: '/performance',
+      id: 'performance',
       icon: <TrendingUp className="h-4 w-4 stroke-[1.5]" />,
     },
     {
       name: 'Usuarios',
       path: '/usuarios',
+      id: 'usuarios',
       adminOnly: true,
       icon: <UserCog className="h-4 w-4 stroke-[1.5]" />,
     },
+    {
+      name: 'Configurações',
+      path: '/configuracoes',
+      id: 'configuracoes',
+      icon: <Settings className="h-4 w-4 stroke-[1.5]" />,
+    },
+    {
+      name: 'Personalização',
+      path: '/personalizacao',
+      id: 'personalizacao',
+      icon: <Palette className="h-4 w-4 stroke-[1.5]" />,
+    },
   ]
 
-  const visibleNavItems = navItems.filter((item) => !item.adminOnly || user?.role === 'admin')
+  const permissions = useAuthStore((state) => state.permissions)
+
+  const filterItem = (item: any) => {
+    const pageId = item.id || item.path.replace('/', '').replace('-', '_')
+    if (permissions && permissions.length > 0) {
+      return permissions.includes(pageId)
+    }
+    
+    // Fallback logic if permissions is empty (e.g. initial load before permissions are fetched)
+    if (item.path === '/usuarios' || item.path === '/configuracoes' || item.path === '/personalizacao') {
+      return ['master', 'head', 'administrativo'].includes(user?.role || '')
+    }
+    if (item.path === '/performance') {
+      return ['master', 'head', 'consultor'].includes(user?.role || '')
+    }
+    if (item.path === '/importar-leads' || item.path === '/distribuicao-leads') {
+      return ['master', 'head', 'administrativo'].includes(user?.role || '')
+    }
+    return true
+  }
+
+  const visibleNavItems = navItems.map(item => {
+    if (!filterItem(item)) return null
+    if (item.subItems) {
+      const filteredSubItems = item.subItems.filter(filterItem)
+      return { ...item, subItems: filteredSubItems }
+    }
+    return item
+  }).filter(Boolean) as typeof navItems
 
   const closePasswordModal = () => {
     setPasswordOpen(false)
@@ -97,39 +163,84 @@ export default function Sidebar() {
     <aside className="w-[220px] flex-shrink-0 bg-[#111827] text-gray-400 flex flex-col h-full select-none border-r border-gray-800 transition-colors duration-150">
       {/* Brand logo */}
       <div className="h-12 px-4 flex items-center gap-2 border-b border-gray-800/60">
-        <span className="h-2 w-2 rounded-full bg-white flex-shrink-0" />
-        <span className="text-sm font-semibold tracking-tight text-white">
-          Portal do Frank
+        {config.logo_base64 ? (
+          <img src={config.logo_base64} alt="Logo" className="h-6 w-auto object-contain" />
+        ) : (
+          <span className="h-2 w-2 rounded-full bg-white flex-shrink-0" />
+        )}
+        <span className="text-sm font-semibold tracking-tight text-white truncate">
+          {config.system_name}
         </span>
       </div>
 
       {/* Nav menu links */}
-      <nav className="flex-1 px-2 py-3 space-y-0.5">
-        {visibleNavItems.map((item) => (
-          <NavLink
-            key={item.name}
-            to={item.path}
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-150 ${
-                isActive
-                  ? 'bg-white/10 text-white'
-                  : 'hover:bg-white/5 hover:text-gray-200 text-gray-400'
-              }`
-            }
-          >
-            {item.icon}
-            <span>{item.name}</span>
-          </NavLink>
-        ))}
+      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
+        {visibleNavItems.map((item) => {
+          const hasSubItems = item.subItems && item.subItems.length > 0;
+          const isExpanded = expandedMenus[item.id] !== false; // Default to true if undefined
+
+          return (
+            <div key={item.id} className="space-y-0.5">
+              <NavLink
+                to={item.path}
+                onClick={() => {
+                  if (hasSubItems) {
+                    setExpandedMenus(prev => ({ ...prev, [item.id]: !isExpanded }))
+                  }
+                }}
+                className={({ isActive }) =>
+                  `flex items-center justify-between px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-150 ${
+                    isActive
+                      ? 'bg-white/10 text-white'
+                      : 'hover:bg-white/5 hover:text-gray-200 text-gray-400'
+                  }`
+                }
+              >
+                <div className="flex items-center gap-2.5">
+                  {item.icon}
+                  <span>{item.name}</span>
+                </div>
+                {hasSubItems && (
+                  <div className="text-gray-500">
+                    {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                  </div>
+                )}
+              </NavLink>
+              {hasSubItems && isExpanded && (
+                <div className="ml-5 mt-0.5 space-y-0.5 border-l border-gray-800 pl-2 animate-in slide-in-from-top-1 fade-in duration-200">
+                   {item.subItems!.map(sub => (
+                     <NavLink
+                       key={sub.id}
+                       to={sub.path}
+                       className={({ isActive }) =>
+                         `flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors duration-150 ${
+                           isActive
+                             ? 'bg-white/10 text-white'
+                             : 'hover:bg-white/5 hover:text-gray-200 text-gray-400'
+                         }`
+                       }
+                     >
+                       <span>{sub.name}</span>
+                     </NavLink>
+                   ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </nav>
 
       {/* Bottom Profile section */}
       <div className="p-3 border-t border-gray-800/60 relative">
         <div className="flex items-center justify-between gap-2 overflow-hidden">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-6 h-6 rounded-full bg-gray-700 text-gray-200 flex items-center justify-center font-bold text-xs flex-shrink-0">
-              {user?.name ? user.name.slice(0, 2).toUpperCase() : 'US'}
-            </div>
+            {user?.avatar_base64 ? (
+              <img src={user.avatar_base64} alt="Avatar" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-gray-700 text-gray-200 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                {user?.name ? user.name.slice(0, 2).toUpperCase() : 'US'}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-white truncate">{user?.name || 'Carregando...'}</p>
             </div>
@@ -247,7 +358,7 @@ export default function Sidebar() {
                   <button
                     type="submit"
                     disabled={savingPassword}
-                    className="flex-1 h-8 px-3 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors duration-150 disabled:opacity-60"
+                    className="flex-1 h-8 px-3 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-medium transition-colors duration-150 disabled:opacity-60"
                   >
                     {savingPassword ? 'Salvando...' : 'Salvar'}
                   </button>

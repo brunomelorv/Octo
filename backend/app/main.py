@@ -26,7 +26,9 @@ async def lifespan(app: FastAPI):
     try:
         from app.services.database import query
         from app.services.auth_service import init_users_table_and_migrate
+        from app.services.settings_service import init_settings_table
         await init_users_table_and_migrate()
+        await init_settings_table()
 
         await query("""
         CREATE TABLE IF NOT EXISTS negocios (
@@ -144,3 +146,9 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(campanhas_router, prefix="/api/campanhas", tags=["campanhas"])
 app.include_router(leads_router, prefix="/api/leads", tags=["leads"])
 app.include_router(negocios_router, prefix="/api/negocios", tags=["negocios"])
+
+from app.routers.upload import router as upload_router
+from app.routers.settings import router as settings_router
+app.include_router(upload_router, prefix="/api/upload", tags=["upload"])
+app.include_router(settings_router, prefix="/api/config", tags=["config"])
+

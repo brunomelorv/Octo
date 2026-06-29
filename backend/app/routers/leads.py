@@ -15,7 +15,7 @@ async def get_kpis(current_user: UserResponse = Depends(get_current_user)):
     Returns general analytical KPIs for leads.
     """
     try:
-        return await leads_service.get_kpis()
+        return await leads_service.get_kpis(user=current_user.model_dump())
     except Exception as e:
         logger.exception("Erro ao obter KPIs")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
@@ -38,7 +38,8 @@ async def list_leads(
             campanha_id=campanha_id,
             search=search,
             page=page,
-            page_size=page_size
+            page_size=page_size,
+            user=current_user.model_dump()
         )
     except Exception as e:
         logger.exception("Erro ao listar leads")
@@ -50,7 +51,7 @@ async def get_dashboard_data(current_user: UserResponse = Depends(get_current_us
     Returns the complete aggregated analytical dashboard data from the database.
     """
     try:
-        return await leads_service.get_dashboard_data()
+        return await leads_service.get_dashboard_data(user=current_user.model_dump())
     except Exception as e:
         logger.exception("Erro ao obter dados do dashboard")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")

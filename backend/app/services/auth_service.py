@@ -75,7 +75,7 @@ def get_users_dict(include_default: bool = True) -> dict:
                 "email": "admin@example.com",
                 "name": "Administrador",
                 "password": default_admin_password_hash,
-                "role": "admin"
+                "role": "master"
             }
         }
     try:
@@ -111,7 +111,7 @@ def get_users_dict(include_default: bool = True) -> dict:
                 "email": "admin@example.com",
                 "name": "Administrador",
                 "password": default_admin_password_hash,
-                "role": "admin"
+                "role": "master"
             }
         }
 
@@ -124,9 +124,10 @@ async def init_users_table_and_migrate() -> None:
             email TEXT NOT NULL UNIQUE,
             name TEXT NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'user',
+            role TEXT NOT NULL DEFAULT 'consultor',
             active INTEGER NOT NULL DEFAULT 1,
             must_change_password INTEGER NOT NULL DEFAULT 0,
+            avatar_base64 TEXT,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT
         );
@@ -135,6 +136,15 @@ async def init_users_table_and_migrate() -> None:
             await db.execute("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;")
         except Exception:
             pass
+
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN avatar_base64 TEXT;")
+        except Exception:
+            pass
+
+        # Migrate legacy roles
+        await db.execute("UPDATE users SET role = 'master' WHERE role = 'admin'")
+        await db.execute("UPDATE users SET role = 'consultor' WHERE role = 'user'")
 
         users = get_users_dict(include_default=False)
         for email, user in users.items():
@@ -150,7 +160,7 @@ async def init_users_table_and_migrate() -> None:
                     email,
                     user.get("name") or email,
                     password_hash,
-                    user.get("role", "user"),
+                    user.get("role", "consultor"),
                 ),
             )
         await db.commit()
@@ -165,6 +175,7 @@ def normalize_user(row: dict) -> dict:
         "role": row["role"],
         "active": bool(row["active"]),
         "must_change_password": bool(row.get("must_change_password", 0)),
+        "avatar_base64": row.get("avatar_base64")
     }
 
 async def get_user_by_email(email: str, include_inactive: bool = False) -> Optional[dict]:
@@ -189,14 +200,14 @@ async def list_users() -> list[dict]:
     db = await get_db()
     try:
         async with db.execute(
-            "SELECT id, email, name, role, active, must_change_password FROM users ORDER BY name COLLATE NOCASE"
+            "SELECT id, email, name, role, active, must_change_password, avatar_base64 FROM users ORDER BY name COLLATE NOCASE"
         ) as cursor:
             rows = await cursor.fetchall()
             return [normalize_user(row) for row in rows]
     finally:
         await db.close()
 
-async def create_user(email: str, name: str, password: str, role: str = "user") -> dict:
+async def create_user(email: str, name: str, password: str, role: str = "consultor") -> dict:
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -209,7 +220,7 @@ async def create_user(email: str, name: str, password: str, role: str = "user") 
         await db.commit()
         user_id = cursor.lastrowid
         async with db.execute(
-            "SELECT id, email, name, role, active, must_change_password FROM users WHERE id = ?",
+            "SELECT id, email, name, role, active, must_change_password, avatar_base64 FROM users WHERE id = ?",
             (user_id,),
         ) as result:
             row = await result.fetchone()
@@ -224,6 +235,7 @@ async def update_user(user_id: int, fields: dict) -> Optional[dict]:
         "role": "role",
         "active": "active",
         "must_change_password": "must_change_password",
+        "avatar_base64": "avatar_base64",
     }
     assignments = []
     values = []
@@ -254,7 +266,7 @@ async def update_user(user_id: int, fields: dict) -> Optional[dict]:
             await db.commit()
 
         async with db.execute(
-            "SELECT id, email, name, role, active, must_change_password FROM users WHERE id = ?",
+            "SELECT id, email, name, role, active, must_change_password, avatar_base64 FROM users WHERE id = ?",
             (user_id,),
         ) as cursor:
             row = await cursor.fetchone()

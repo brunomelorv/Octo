@@ -430,7 +430,7 @@ export default function LeadsPage() {
             <p className="text-red-500 font-medium text-sm">{error}</p>
             <button
               onClick={fetchLeads}
-              className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium rounded-md transition-colors duration-150"
+              className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-medium rounded-md transition-colors duration-150"
             >
               Tentar Novamente
             </button>
@@ -669,7 +669,7 @@ export default function LeadsPage() {
                     <p className="text-red-500 text-xs font-semibold">{detailsError}</p>
                     <button
                       onClick={() => handleOpenDetails(selectedLead?.phone || '')}
-                      className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-medium rounded-md transition-colors duration-150"
+                      className="mt-4 h-8 px-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-xs font-medium rounded-md transition-colors duration-150"
                     >
                       Recarregar
                     </button>

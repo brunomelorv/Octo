@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from app.services.database import query
 
-async def get_leads(status=None, campanha_id=None, search=None, page=1, page_size=50) -> dict:
+async def get_leads(status=None, campanha_id=None, search=None, page=1, page_size=50, user=None) -> dict:
     """
     Selects leads from the leads table with optional filters, search, and dynamic call classification.
     Returns a paginated dictionary structure.
@@ -20,6 +20,10 @@ async def get_leads(status=None, campanha_id=None, search=None, page=1, page_siz
         s_term = f"%{search.strip()}%"
         conditions.append("(full_name LIKE ? OR phone LIKE ? OR email LIKE ? OR campaign_name LIKE ? OR city LIKE ?)")
         params.extend([s_term, s_term, s_term, s_term, s_term])
+        
+    if user and user.get("role") == "consultor":
+        conditions.append("(l.id IN (SELECT lead_id FROM negocios WHERE usuario_email = ?) OR l.id NOT IN (SELECT lead_id FROM negocios))")
+        params.append(user["email"])
         
     where_clause = ""
     if conditions:
@@ -112,28 +116,34 @@ async def get_lead_by_phone(phone: str) -> dict | None:
     lead_dict["chamadas"] = [dict(call) for call in calls]
     return lead_dict
 
-async def get_kpis() -> dict:
+async def get_kpis(user=None) -> dict:
     """
     Calculates KPI metrics directly on SQLite.
     Returns total_leads, total_com_chamada, total_agendados, contact rate,
     and conversion rate without contact.
     """
+    base_where = ""
+    params = []
+    if user and user.get("role") == "consultor":
+        base_where = "WHERE (id IN (SELECT lead_id FROM negocios WHERE usuario_email = ?) OR id NOT IN (SELECT lead_id FROM negocios))"
+        params.append(user["email"])
+
     # total_leads
-    res_total = await query("SELECT COUNT(*) as total FROM leads")
+    res_total = await query(f"SELECT COUNT(*) as total FROM leads {base_where}", tuple(params))
     total_leads = res_total[0]["total"] if res_total else 0
     
     # total_com_chamada
-    res_chamada = await query(
-        "SELECT COUNT(*) as total FROM leads "
-        "WHERE phone IN (SELECT DISTINCT telefone_normalizado FROM chamadas)"
-    )
+    q_chamada = "SELECT COUNT(*) as total FROM leads WHERE phone IN (SELECT DISTINCT telefone_normalizado FROM chamadas)"
+    if base_where:
+        q_chamada = f"SELECT COUNT(*) as total FROM leads {base_where} AND phone IN (SELECT DISTINCT telefone_normalizado FROM chamadas)"
+    res_chamada = await query(q_chamada, tuple(params))
     total_com_chamada = res_chamada[0]["total"] if res_chamada else 0
     
     # total_agendados (reuniao_agendada IS NOT NULL and not empty string)
-    res_agendados = await query(
-        "SELECT COUNT(*) as total FROM leads "
-        "WHERE phone IN (SELECT DISTINCT telefone_normalizado FROM chamadas WHERE reuniao_agendada IS NOT NULL AND reuniao_agendada != '')"
-    )
+    q_agendados = "SELECT COUNT(*) as total FROM leads WHERE phone IN (SELECT DISTINCT telefone_normalizado FROM chamadas WHERE reuniao_agendada IS NOT NULL AND reuniao_agendada != '')"
+    if base_where:
+        q_agendados = f"SELECT COUNT(*) as total FROM leads {base_where} AND phone IN (SELECT DISTINCT telefone_normalizado FROM chamadas WHERE reuniao_agendada IS NOT NULL AND reuniao_agendada != '')"
+    res_agendados = await query(q_agendados, tuple(params))
     total_agendados = res_agendados[0]["total"] if res_agendados else 0
     
     # taxa_contato (%)
@@ -242,9 +252,14 @@ def classify_call_dynamic(call):
         
     return "Caixa Postal / Não Atendido", "Caixa Postal / Não Atendido", 2
 
-async def get_dashboard_data() -> dict:
-    # 1. Query all leads and all calls from SQLite database
-    leads = await query("SELECT * FROM leads")
+async def get_dashboard_data(user=None) -> dict:
+    where_clause = ""
+    params = []
+    if user and user.get("role") == "consultor":
+        where_clause = "WHERE (id IN (SELECT lead_id FROM negocios WHERE usuario_email = ?) OR id NOT IN (SELECT lead_id FROM negocios))"
+        params.append(user["email"])
+        
+    leads = await query(f"SELECT * FROM leads {where_clause}", tuple(params))
     calls = await query("SELECT * FROM chamadas")
     
     # Calculate stats

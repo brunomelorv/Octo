@@ -13,6 +13,7 @@
   --text-tertiary: #9ca3af;    /* Placeholder/disabled text */
   --accent: #1f2937;           /* Almost-black accent (Twenty's style) */
   --accent-hover: #374151;     /* Accent hover */
+  --accent-fg: #ffffff;        /* Text on accent */
   --danger: #ef4444;
   --success: #22c55e;
   --warning: #f59e0b;
@@ -29,6 +30,7 @@
   --text-tertiary: #6b7280;
   --accent: #f9fafb;
   --accent-hover: #e5e7eb;
+  --accent-fg: #111827;
   --danger: #ef4444;
   --success: #22c55e;
   --warning: #f59e0b;

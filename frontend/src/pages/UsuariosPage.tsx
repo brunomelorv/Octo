@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { UserCog, Plus, Pencil, Trash2, X, ShieldCheck, User, RefreshCw } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { usuariosService } from '../services/usuarios'
-import type { Usuario, CreateUsuarioPayload, UpdateUsuarioPayload } from '../services/usuarios'
+import type { Usuario, CreateUsuarioPayload, UpdateUsuarioPayload, UserRole } from '../services/usuarios'
 
 type ModalMode = 'create' | 'edit'
 
@@ -26,7 +26,7 @@ export default function UsuariosPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'admin' | 'user'>('user')
+  const [role, setRole] = useState<UserRole>('consultor')
   const [active, setActive] = useState(true)
   const [mustChange, setMustChange] = useState(true)
 
@@ -35,7 +35,7 @@ export default function UsuariosPage() {
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    if (currentUser?.role !== 'admin') {
+    if (!['master', 'head', 'administrativo'].includes(currentUser?.role || '')) {
       navigate('/dashboard', { replace: true })
       return
     }
@@ -61,7 +61,7 @@ export default function UsuariosPage() {
     setName('')
     setEmail('')
     setPassword('')
-    setRole('user')
+    setRole('consultor')
     setActive(true)
     setMustChange(true)
     setModalError(null)
@@ -145,7 +145,7 @@ export default function UsuariosPage() {
           </button>
           <button
             onClick={openCreate}
-            className="flex items-center gap-1.5 h-7 px-3 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-medium transition-colors duration-150"
+            className="flex items-center gap-1.5 h-7 px-3 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-xs font-medium transition-colors duration-150"
           >
             <Plus className="h-3.5 w-3.5" />
             Novo usuário
@@ -182,9 +182,13 @@ export default function UsuariosPage() {
                   <tr key={u.id} className="hover:bg-[var(--surface-raised)] transition-colors duration-100">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-[var(--text-secondary)] flex-shrink-0">
-                          {u.name.slice(0, 2).toUpperCase()}
-                        </div>
+                        {u.avatar_base64 ? (
+                          <img src={u.avatar_base64} alt={u.name} className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-[var(--text-secondary)] flex-shrink-0">
+                            {u.name.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
                         <span className="font-medium text-[var(--text-primary)]">{u.name}</span>
                         {u.id === currentUser?.id && (
                           <span className="text-xs text-[var(--text-secondary)] italic">(você)</span>
@@ -193,15 +197,28 @@ export default function UsuariosPage() {
                     </td>
                     <td className="px-4 py-3 text-[var(--text-secondary)]">{u.email}</td>
                     <td className="px-4 py-3">
-                      {u.role === 'admin' ? (
+                      {u.role === 'master' && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200/50 dark:bg-violet-950/20 dark:text-violet-400 dark:border-violet-900/30">
                           <ShieldCheck className="h-3 w-3" />
-                          Admin
+                          Master
                         </span>
-                      ) : (
+                      )}
+                      {u.role === 'head' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/50 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">
+                          <UserCog className="h-3 w-3" />
+                          Head de BU
+                        </span>
+                      )}
+                      {u.role === 'administrativo' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200/50 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30">
+                          <User className="h-3 w-3" />
+                          Administrativo
+                        </span>
+                      )}
+                      {u.role === 'consultor' && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200/50 dark:bg-sky-950/20 dark:text-sky-400 dark:border-sky-900/30">
                           <User className="h-3 w-3" />
-                          Usuário
+                          Consultor
                         </span>
                       )}
                     </td>
@@ -310,11 +327,13 @@ export default function UsuariosPage() {
                   <span className="text-xs text-[var(--text-secondary)]">Perfil</span>
                   <select
                     value={role}
-                    onChange={(e) => setRole(e.target.value as 'admin' | 'user')}
+                    onChange={(e) => setRole(e.target.value as UserRole)}
                     className="mt-1 w-full px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
                   >
-                    <option value="user">Usuário</option>
-                    <option value="admin">Admin</option>
+                    <option value="master">Master</option>
+                    <option value="head">Head de BU</option>
+                    <option value="administrativo">Administrativo</option>
+                    <option value="consultor">Consultor</option>
                   </select>
                 </label>
 
@@ -352,7 +371,7 @@ export default function UsuariosPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="flex-1 h-8 px-3 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors duration-150 disabled:opacity-60"
+                    className="flex-1 h-8 px-3 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-medium transition-colors duration-150 disabled:opacity-60"
                   >
                     {saving ? 'Salvando...' : 'Salvar'}
                   </button>

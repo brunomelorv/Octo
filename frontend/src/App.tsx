@@ -10,7 +10,14 @@ import LeadsPage from './pages/LeadsPage'
 import PerformancePage from './pages/PerformancePage'
 import NegociosPage from './pages/NegociosPage'
 import UsuariosPage from './pages/UsuariosPage'
+import ImportarLeadsPage from './pages/ImportarLeadsPage'
+import ConfiguracoesPage from './pages/ConfiguracoesPage'
+import PersonalizacaoPage from './pages/PersonalizacaoPage'
+import DistribuicaoLeadsPage from './pages/DistribuicaoLeadsPage'
 import NotFoundPage from './pages/NotFoundPage'
+
+import { useConfigStore } from './store/configStore'
+import api from './services/api'
 
 function RootRedirect() {
   const token = useAuthStore((state) => state.token)
@@ -21,18 +28,27 @@ export default function App() {
   const token = useAuthStore((state) => state.token)
   const setAuth = useAuthStore((state) => state.setAuth)
   const logout = useAuthStore((state) => state.logout)
+  const setConfig = useConfigStore((state) => state.setConfig)
 
   useEffect(() => {
+    // Fetch global config on mount
+    api.get('/config/personalizacao')
+      .then(res => setConfig(res.data))
+      .catch(err => console.error('Failed to load config:', err))
+
     if (token) {
-      authService.getMe()
-        .then((user) => {
-          setAuth(user, token)
+      Promise.all([
+        authService.getMe(),
+        authService.getMyPermissions().catch(() => [])
+      ])
+        .then(([user, permissions]) => {
+          setAuth(user, token, permissions)
         })
         .catch(() => {
           logout()
         })
     }
-  }, [token, setAuth, logout])
+  }, [token, setAuth, logout, setConfig])
 
   return (
     <Routes>
@@ -55,6 +71,10 @@ export default function App() {
         <Route path="/performance" element={<PerformancePage />} />
         <Route path="/negocios" element={<NegociosPage />} />
         <Route path="/usuarios" element={<UsuariosPage />} />
+        <Route path="/importar-leads" element={<ImportarLeadsPage />} />
+        <Route path="/configuracoes" element={<ConfiguracoesPage />} />
+        <Route path="/personalizacao" element={<PersonalizacaoPage />} />
+        <Route path="/distribuicao-leads" element={<DistribuicaoLeadsPage />} />
       </Route>
 
       {/* Fallback 404 Route */}

@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authService } from '../services/auth'
 import { useAuthStore } from '../store/authStore'
+import { useConfigStore } from '../store/configStore'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -10,7 +11,12 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   const setAuth = useAuthStore((state) => state.setAuth)
+  const config = useConfigStore((state) => state.config)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    document.title = `${config.system_name} - Login`
+  }, [config.system_name])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,8 +26,13 @@ export default function LoginPage() {
     try {
       const data = await authService.login(email, password)
       localStorage.setItem('token', data.access_token)
-      const user = await authService.getMe()
-      setAuth(user, data.access_token)
+      
+      const [user, permissions] = await Promise.all([
+        authService.getMe(),
+        authService.getMyPermissions().catch(() => [])
+      ])
+      
+      setAuth(user, data.access_token, permissions)
       navigate('/dashboard')
     } catch (err: any) {
       if (err.response && err.response.data && err.response.data.detail) {
@@ -39,10 +50,16 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-center p-4 transition-colors duration-150">
       {/* Top logo */}
       <div className="flex items-center gap-2 mb-6 select-none">
-        <span className="h-2.5 w-2.5 rounded-full bg-[var(--accent)] flex-shrink-0" />
-        <span className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">
-          Portal do Frank
-        </span>
+        {config.logo_base64 ? (
+          <img src={config.logo_base64} alt="Logo" className="h-8 object-contain" />
+        ) : (
+          <span className="h-2.5 w-2.5 rounded-full bg-[var(--accent)] flex-shrink-0" />
+        )}
+        {!config.logo_base64 && (
+          <span className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">
+            {config.system_name}
+          </span>
+        )}
       </div>
 
       {/* Main card */}
@@ -90,11 +107,11 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full h-8 mt-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-md text-sm font-medium transition-colors duration-150 disabled:opacity-60 flex justify-center items-center gap-2"
+            className="w-full h-8 mt-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] rounded-md text-sm font-medium transition-colors duration-150 disabled:opacity-60 flex justify-center items-center gap-2"
           >
             {isLoading ? (
               <>
-                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-4 w-4 text-[var(--accent-fg)]" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
@@ -108,7 +125,7 @@ export default function LoginPage() {
       </div>
 
       <div className="mt-6 text-center text-xs text-[var(--text-tertiary)]">
-        &copy; {new Date().getFullYear()} Portal do Frank. Todos os direitos reservados.
+        &copy; {new Date().getFullYear()} {config.system_name}. Todos os direitos reservados.
       </div>
     </div>
   )

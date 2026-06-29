@@ -50,7 +50,7 @@ def map_column(col):
     return re.sub(r'[^a-z0-9_]', '_', col_lower).strip('_')
 
 def consolidate_leads(db_conn):
-    source_folder = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Marketing e Pitch\Marketing\leads_facebook"
+    source_folder = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Projetos\Marketing e Pitch\Marketing\leads_facebook"
     script_dir = os.path.dirname(os.path.abspath(__file__))
     csv_out_path = os.path.join(script_dir, "leads_consolidated.csv")
     
@@ -140,7 +140,7 @@ def consolidate_leads(db_conn):
     return True
 
 def consolidate_calls(db_conn):
-    source_folder = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Marketing e Pitch\analise PitchYEs\chamadas_pitchyes"
+    source_folder = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Projetos\Marketing e Pitch\analise PitchYEs\chamadas_pitchyes"
     script_dir = os.path.dirname(os.path.abspath(__file__))
     csv_out_path = os.path.join(script_dir, "chamadas_consolidated.csv")
     

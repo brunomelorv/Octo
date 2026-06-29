@@ -23,7 +23,7 @@ async def list_negocios(
     Lists deals (negocios) filtered by campaign or search term.
     """
     try:
-        return await negocios_service.get_negocios(campaign_id=campaign_id, search=search)
+        return await negocios_service.get_negocios(campaign_id=campaign_id, search=search, user=current_user.model_dump())
     except Exception as e:
         logger.exception("Erro ao listar negócios")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")

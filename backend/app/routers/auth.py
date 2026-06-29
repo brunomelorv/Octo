@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from pydantic import BaseModel
 from app.models.user import UserCreate, UserUpdate, PasswordChange, UserLogin, UserResponse, TokenResponse
 from app.services.auth_service import (
     authenticate_user,
@@ -41,11 +42,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         )
     return user_response
 
-async def require_admin(current_user: UserResponse = Depends(get_current_user)) -> UserResponse:
-    if current_user.role != "admin":
+async def require_user_manager(current_user: UserResponse = Depends(get_current_user)) -> UserResponse:
+    if current_user.role not in ("master", "head", "administrativo"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso permitido apenas para administradores",
+            detail="Acesso não autorizado para gerenciar usuários",
         )
     return current_user
 
@@ -97,12 +98,22 @@ async def change_password(
         )
     return {"message": "Senha atualizada com sucesso"}
 
+class AvatarUpdate(BaseModel):
+    avatar_base64: str
+
+@router.patch("/me/avatar", response_model=UserResponse)
+async def update_my_avatar(data: AvatarUpdate, current_user: UserResponse = Depends(get_current_user)):
+    user = await update_user(int(current_user.id), {"avatar_base64": data.avatar_base64})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    return user
+
 @router.get("/users", response_model=list[UserResponse])
-async def get_users(_: UserResponse = Depends(require_admin)):
+async def get_users(_: UserResponse = Depends(require_user_manager)):
     return await list_users()
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def post_user(data: UserCreate, _: UserResponse = Depends(require_admin)):
+async def post_user(data: UserCreate, _: UserResponse = Depends(require_user_manager)):
     try:
         return await create_user(
             email=data.email.strip().lower(),
@@ -117,7 +128,7 @@ async def post_user(data: UserCreate, _: UserResponse = Depends(require_admin)):
         )
 
 @router.patch("/users/{user_id}", response_model=UserResponse)
-async def patch_user(user_id: int, data: UserUpdate, _: UserResponse = Depends(require_admin)):
+async def patch_user(user_id: int, data: UserUpdate, _: UserResponse = Depends(require_user_manager)):
     fields = data.model_dump(exclude_unset=True)
     if "email" in fields and fields["email"]:
         fields["email"] = fields["email"].strip().lower()
@@ -135,7 +146,7 @@ async def patch_user(user_id: int, data: UserUpdate, _: UserResponse = Depends(r
     return user
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_user(user_id: int, current_user: UserResponse = Depends(require_admin)):
+async def remove_user(user_id: int, current_user: UserResponse = Depends(require_user_manager)):
     if str(user_id) == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
