@@ -29,7 +29,7 @@ async def get_negocios(campaign_id=None, search=None, user=None) -> list[dict]:
         
     sql = f"""
     SELECT l.id, l.full_name, l.phone, l.email, l.city, l.campaign_name, l.platform, l.created_time,
-           n.etapa, n.valor, n.updated_at,
+           n.etapa, n.valor, n.updated_at, n.usuario_email, n.usuario_nome,
            c.data_hora as call_date, 
            c.duracao_segundos as call_duration, 
            c.resumo_ligacao as call_summary, 
@@ -89,7 +89,7 @@ async def get_negocios(campaign_id=None, search=None, user=None) -> list[dict]:
         
     return negocios_list
 
-async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email: str = "", user_name: str = "") -> bool:
+async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email: str = "", user_name: str = "", loss_reason: str = None, loss_comment: str = None) -> bool:
     """
     Saves or updates a deal's stage and value, and writes a history audit log.
     """
@@ -140,6 +140,30 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (lead_id, etapa_anterior, etapa, valor, user_email, user_name, updated_at)
     )
+    
+    # Update performance metrics by inserting a CRM resolution event into chamadas
+    if etapa in ["Ganho", "Perdido", "KYC/COF/Contrato"] and etapa != etapa_anterior:
+        phone = lead.get("phone")
+        if phone:
+            resumo = ""
+            status_ligacao = ""
+            if etapa == "Ganho":
+                resumo = f"{{lead quente}} Negócio marcado como Ganho no CRM por {user_name}."
+                status_ligacao = "Ganho CRM"
+            elif etapa == "KYC/COF/Contrato":
+                resumo = f"{{lead quente}} Negócio avançou para KYC/COF/Contrato no CRM por {user_name}."
+                status_ligacao = "KYC CRM"
+            elif etapa == "Perdido":
+                r_reason = loss_reason or "Desqualificado no Kanban"
+                r_comment = loss_comment or ""
+                resumo = f"{{lead desqualificado}} Negócio marcado como Perdido no CRM por {user_name}. Motivo: {r_reason}. Comentário: {r_comment}"
+                status_ligacao = "Perdido CRM"
+                
+            await query(
+                "INSERT INTO chamadas (nome_contato, telefone_normalizado, data_hora, resumo_ligacao, status_ligacao, source_file) VALUES (?, ?, ?, ?, ?, ?)",
+                (lead.get("full_name") or "Lead", phone, updated_at, resumo, status_ligacao, "CRM_MANUAL")
+            )
+            
     return True
 
 async def get_negocios_historico() -> list[dict]:

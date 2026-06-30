@@ -103,9 +103,8 @@ def consolidate_leads(db_conn):
     
     # Write to SQLite
     cursor = db_conn.cursor()
-    cursor.execute("DROP TABLE IF EXISTS leads")
     create_table_sql = """
-    CREATE TABLE leads (
+    CREATE TABLE IF NOT EXISTS leads (
         id TEXT PRIMARY KEY,
         created_time TEXT,
         ad_id TEXT,
@@ -127,15 +126,62 @@ def consolidate_leads(db_conn):
     );
     """
     cursor.execute(create_table_sql)
-    dedup_df.to_sql('leads', db_conn, if_exists='append', index=False)
-    print("Written to SQLite 'leads' table.")
+    
+    # Perform upsert row-by-row or using a batch SQL statement
+    upsert_sql = """
+    INSERT INTO leads (
+        id, created_time, ad_id, ad_name, adset_id, adset_name, 
+        campaign_id, campaign_name, form_id, form_name, is_organic, 
+        platform, full_name, phone, city, email, lead_status, source_file
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+        created_time = excluded.created_time,
+        ad_id = excluded.ad_id,
+        ad_name = excluded.ad_name,
+        adset_id = excluded.adset_id,
+        adset_name = excluded.adset_name,
+        campaign_id = excluded.campaign_id,
+        campaign_name = excluded.campaign_name,
+        form_id = excluded.form_id,
+        form_name = excluded.form_name,
+        is_organic = excluded.is_organic,
+        platform = excluded.platform,
+        full_name = excluded.full_name,
+        phone = excluded.phone,
+        city = excluded.city,
+        email = excluded.email,
+        lead_status = excluded.lead_status,
+        source_file = excluded.source_file
+    """
+    
+    columns = [
+        'id', 'created_time', 'ad_id', 'ad_name', 'adset_id', 'adset_name',
+        'campaign_id', 'campaign_name', 'form_id', 'form_name', 'is_organic',
+        'platform', 'full_name', 'phone', 'city', 'email', 'lead_status', 'source_file'
+    ]
+    
+    # Ensure all columns exist in the DataFrame (fill with None if missing)
+    for col in columns:
+        if col not in dedup_df.columns:
+            dedup_df[col] = None
+            
+    records = dedup_df[columns].values.tolist()
+    
+    # Convert numpy types to python types (especially nan to None)
+    clean_records = []
+    for r in records:
+        clean_records.append([None if pd.isna(val) else val for val in r])
+        
+    cursor.executemany(upsert_sql, clean_records)
+    db_conn.commit()
+    print(f"Upserted {len(clean_records)} leads into SQLite.")
     
     # Create indexes
-    cursor.execute("CREATE INDEX idx_leads_phone ON leads(phone)")
-    cursor.execute("CREATE INDEX idx_leads_created_time ON leads(created_time)")
-    cursor.execute("CREATE INDEX idx_leads_campaign_name ON leads(campaign_name)")
-    cursor.execute("CREATE INDEX idx_leads_platform ON leads(platform)")
-    cursor.execute("CREATE INDEX idx_leads_form_name ON leads(form_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_phone ON leads(phone)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_created_time ON leads(created_time)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_campaign_name ON leads(campaign_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_platform ON leads(platform)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_form_name ON leads(form_name)")
     
     return True
 
@@ -200,10 +246,8 @@ def consolidate_calls(db_conn):
     
     # Write to SQLite
     cursor = db_conn.cursor()
-    cursor.execute("DROP TABLE IF EXISTS chamadas")
-    
     create_table_sql = """
-    CREATE TABLE chamadas (
+    CREATE TABLE IF NOT EXISTS chamadas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome_contato TEXT,
         telefone TEXT,
@@ -222,14 +266,57 @@ def consolidate_calls(db_conn):
     """
     cursor.execute(create_table_sql)
     
-    # Write dataframe without 'id' so SQLite auto-generates it
-    dedup_df.to_sql('chamadas', db_conn, if_exists='append', index=False)
-    print("Written to SQLite 'chamadas' table.")
+    # Create the unique index to enable ON CONFLICT upserting
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_chamadas_upsert ON chamadas(nome_contato, telefone, data_hora)")
+    
+    # We will use cursor.executemany to perform the upsert efficiently
+    upsert_sql = """
+    INSERT INTO chamadas (
+        nome_contato, telefone, telefone_normalizado, data_hora, 
+        duracao_segundos, resumo_ligacao, status_ligacao, 
+        link_gravacao, reuniao_agendada, link_reuniao, 
+        anotacoes, tag, source_file
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(nome_contato, telefone, data_hora) DO UPDATE SET
+        telefone_normalizado = excluded.telefone_normalizado,
+        duracao_segundos = excluded.duracao_segundos,
+        resumo_ligacao = excluded.resumo_ligacao,
+        status_ligacao = excluded.status_ligacao,
+        link_gravacao = excluded.link_gravacao,
+        reuniao_agendada = excluded.reuniao_agendada,
+        link_reuniao = excluded.link_reuniao,
+        anotacoes = excluded.anotacoes,
+        tag = excluded.tag,
+        source_file = excluded.source_file
+    """
+    
+    columns = [
+        'nome_contato', 'telefone', 'telefone_normalizado', 'data_hora',
+        'duracao_segundos', 'resumo_ligacao', 'status_ligacao',
+        'link_gravacao', 'reuniao_agendada', 'link_reuniao',
+        'anotacoes', 'tag', 'source_file'
+    ]
+    
+    # Ensure all columns exist in the DataFrame (fill with None if missing)
+    for col in columns:
+        if col not in dedup_df.columns:
+            dedup_df[col] = None
+            
+    records = dedup_df[columns].values.tolist()
+    
+    # Convert numpy types to python types (especially nan to None)
+    clean_records = []
+    for r in records:
+        clean_records.append([None if pd.isna(val) else val for val in r])
+        
+    cursor.executemany(upsert_sql, clean_records)
+    db_conn.commit()
+    print(f"Upserted {len(clean_records)} calls into SQLite.")
     
     # Create indexes
-    cursor.execute("CREATE INDEX idx_chamadas_telefone_normalizado ON chamadas(telefone_normalizado)")
-    cursor.execute("CREATE INDEX idx_chamadas_data_hora ON chamadas(data_hora)")
-    cursor.execute("CREATE INDEX idx_chamadas_reuniao_agendada ON chamadas(reuniao_agendada)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_chamadas_telefone_normalizado ON chamadas(telefone_normalizado)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_chamadas_data_hora ON chamadas(data_hora)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_chamadas_reuniao_agendada ON chamadas(reuniao_agendada)")
     
     return True
 
@@ -409,6 +496,167 @@ def create_views(db_conn):
     db_conn.commit()
     print("Analytical views and indexes created successfully.")
 
+def distribute_new_leads(db_conn):
+    import json
+    from datetime import datetime
+    
+    print("\n--- Running Lead Distribution (Round-Robin) ---")
+    cursor = db_conn.cursor()
+    
+    # 1. Fetch setting for distribution
+    cursor.execute("SELECT value FROM settings WHERE key = 'distribuicao'")
+    row = cursor.fetchone()
+    if not row:
+        print("No lead distribution settings found. Skipping.")
+        return
+        
+    try:
+        config = json.loads(row[0])
+    except Exception as e:
+        print(f"Error parsing distribution config: {e}")
+        return
+        
+    auto_distribute = config.get("auto_distribute", False)
+    participating_users = config.get("participating_users", [])
+    
+    if not auto_distribute:
+        print("Round-Robin distribution is disabled in settings. Skipping.")
+        return
+        
+    if not participating_users:
+        print("No participating users selected in settings. Skipping.")
+        return
+        
+    # 2. Fetch active users' email and names
+    user_ids = []
+    for uid in participating_users:
+        try:
+            user_ids.append(int(uid))
+        except (ValueError, TypeError):
+            pass
+            
+    if not user_ids:
+        print("No valid user IDs found in settings. Skipping.")
+        return
+        
+    placeholders = ",".join("?" for _ in user_ids)
+    cursor.execute(f"SELECT id, email, name FROM users WHERE id IN ({placeholders}) AND active = 1", tuple(user_ids))
+    db_users = [dict(zip(["id", "email", "name"], r)) for r in cursor.fetchall()]
+    
+    if not db_users:
+        print("No active participating users found in the database. Skipping.")
+        return
+        
+    # Order the users in the round robin to match the order in participating_users setting
+    user_order_map = {int(uid): idx for idx, uid in enumerate(participating_users) if str(uid).isdigit()}
+    db_users.sort(key=lambda u: user_order_map.get(u["id"], 9999))
+    
+    print(f"Active consultants in distribution queue: {[u['name'] for u in db_users]}")
+    
+    # 3. Find leads that DO NOT exist in negocios
+    # Join with the latest call partition to compute stage
+    cursor.execute("""
+    SELECT l.id, l.full_name, l.phone,
+           c.resumo_ligacao, c.reuniao_agendada
+    FROM leads l
+    LEFT JOIN (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY telefone_normalizado ORDER BY data_hora DESC) as rn
+        FROM chamadas
+    ) c ON c.telefone_normalizado = l.phone AND c.rn = 1
+    WHERE l.id NOT IN (SELECT lead_id FROM negocios)
+    ORDER BY l.created_time ASC
+    """)
+    new_leads = cursor.fetchall()
+    
+    if not new_leads:
+        print("No new unassigned leads found. Skipping.")
+        return
+        
+    print(f"Found {len(new_leads)} new unassigned leads to distribute.")
+    
+    # Helper to classify stage
+    def compute_initial_stage(resumo_ligacao, reuniao_agendada, has_call):
+        if not has_call:
+            return "Novo/Sem Contato"
+        resumo_lower = (resumo_ligacao or "").lower()
+        if "reunião agendada" in resumo_lower:
+            return "Reunião Agendada"
+        elif "{lead quente}" in resumo_lower or "retorno agendado" in resumo_lower:
+            return "Qualificado"
+        elif "{lead desqualificado}" in resumo_lower:
+            return "Perdido"
+        else:
+            return "Contatado"
+            
+    # 4. Perform Round-Robin assignment
+    num_users = len(db_users)
+    
+    # To make it even more balanced across imports, we start with the user who has the fewest assigned leads.
+    cursor.execute("SELECT usuario_email, count(*) as count FROM negocios WHERE usuario_email IS NOT NULL GROUP BY usuario_email")
+    counts_map = {r[0]: r[1] for r in cursor.fetchall()}
+    
+    min_count = float('inf')
+    start_user_idx = 0
+    for idx, u in enumerate(db_users):
+        ucount = counts_map.get(u["email"], 0)
+        if ucount < min_count:
+            min_count = ucount
+            start_user_idx = idx
+            
+    user_idx = start_user_idx
+    print(f"Starting distribution from: {db_users[user_idx]['name']} (currently has {min_count} leads)")
+    
+    insert_negocios_sql = """
+        INSERT INTO negocios (lead_id, etapa, valor, updated_at, usuario_email, usuario_nome)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """
+    
+    negocios_data = []
+    updated_at = datetime.now().isoformat()
+    
+    for lead in new_leads:
+        lead_id, full_name, phone, resumo_ligacao, reuniao_agendada = lead
+        has_call = phone is not None and resumo_ligacao is not None
+        initial_stage = compute_initial_stage(resumo_ligacao, reuniao_agendada, has_call)
+        
+        assigned_user = db_users[user_idx]
+        
+        negocios_data.append((
+            lead_id,
+            initial_stage,
+            0.0,
+            updated_at,
+            assigned_user["email"],
+            assigned_user["name"]
+        ))
+        
+        user_idx = (user_idx + 1) % num_users
+        
+    if negocios_data:
+        cursor.executemany(insert_negocios_sql, negocios_data)
+        db_conn.commit()
+        print(f"Successfully distributed {len(negocios_data)} leads.")
+        
+        # Insert audit trail for these assignments in negocios_historico
+        insert_hist_sql = """
+            INSERT INTO negocios_historico (lead_id, etapa_anterior, etapa_nova, valor, usuario_email, usuario_nome, data_hora)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        hist_data = []
+        for d in negocios_data:
+            hist_data.append((
+                d[0],
+                "Novo/Sem Contato",
+                d[1],
+                0.0,
+                d[4],
+                d[5],
+                d[3]
+            ))
+        cursor.executemany(insert_hist_sql, hist_data)
+        db_conn.commit()
+        print(f"Created {len(hist_data)} history audit entries for assignments.")
+
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(script_dir, "leads.db")
@@ -424,6 +672,7 @@ def main():
     
     if leads_success or calls_success:
         create_views(conn)
+        distribute_new_leads(conn)
         print("Database fully built and validated!")
     else:
         print("Error: Consolidation processes failed.")

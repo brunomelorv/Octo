@@ -27,6 +27,8 @@ export interface Lead {
   call_summary?: string | null
   call_recording?: string | null
   reuniao_agendada?: string | null
+  usuario_email?: string | null
+  usuario_nome?: string | null
 }
 
 export interface Call {

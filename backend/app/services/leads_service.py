@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from app.services.database import query
 
-async def get_leads(status=None, campanha_id=None, search=None, page=1, page_size=50, user=None) -> dict:
+async def get_leads(status=None, campanha_id=None, search=None, page=1, page_size=50, user=None, consultant=None) -> dict:
     """
     Selects leads from the leads table with optional filters, search, and dynamic call classification.
     Returns a paginated dictionary structure.
@@ -25,6 +25,13 @@ async def get_leads(status=None, campanha_id=None, search=None, page=1, page_siz
         conditions.append("(l.id IN (SELECT lead_id FROM negocios WHERE usuario_email = ?) OR l.id NOT IN (SELECT lead_id FROM negocios))")
         params.append(user["email"])
         
+    if consultant is not None and consultant != "" and consultant != "all":
+        if consultant == "unassigned":
+            conditions.append("n.usuario_email IS NULL")
+        else:
+            conditions.append("n.usuario_nome = ?")
+            params.append(consultant)
+            
     where_clause = ""
     if conditions:
         where_clause = "WHERE " + " AND ".join(conditions)
@@ -32,6 +39,8 @@ async def get_leads(status=None, campanha_id=None, search=None, page=1, page_siz
     # SQL query with join to latest call
     sql = f"""
     SELECT l.*, 
+           n.usuario_email,
+           n.usuario_nome,
            c.data_hora as call_date, 
            c.duracao_segundos as call_duration, 
            c.resumo_ligacao as call_summary, 
@@ -41,6 +50,7 @@ async def get_leads(status=None, campanha_id=None, search=None, page=1, page_siz
            c.link_gravacao as call_recording,
            c.telefone_normalizado as call_phone
     FROM leads l
+    LEFT JOIN negocios n ON n.lead_id = l.id
     LEFT JOIN (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY telefone_normalizado ORDER BY data_hora DESC) as rn
         FROM chamadas

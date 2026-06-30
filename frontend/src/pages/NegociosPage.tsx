@@ -162,6 +162,7 @@ export default function NegociosPage() {
 
   const [campaigns, setCampaigns] = useState<CampanhasResponse[]>([])
   const [selectedCampaign, setSelectedCampaign] = useState('all')
+  const [selectedConsultant, setSelectedConsultant] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   const [editingDealId, setEditingDealId] = useState<string | null>(null)
@@ -171,6 +172,30 @@ export default function NegociosPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
+
+  // Loss Modal states
+  const [lossModalOpen, setLossModalOpen] = useState(false)
+  const [lossDeal, setLossDeal] = useState<Negocio | null>(null)
+  const [lossReason, setLossReason] = useState('Sem interesse')
+  const [lossComment, setLossComment] = useState('')
+  const [lossCallback, setLossCallback] = useState<((reason: string, comment: string) => void) | null>(null)
+
+  const promptLossReason = (deal: Negocio, onConfirm: (reason: string, comment: string) => void) => {
+    setLossDeal(deal)
+    setLossReason('Sem interesse')
+    setLossComment('')
+    setLossCallback(() => (reason: string, comment: string) => {
+      onConfirm(reason, comment)
+      closeLossModal()
+    })
+    setLossModalOpen(true)
+  }
+
+  const closeLossModal = () => {
+    setLossModalOpen(false)
+    setLossDeal(null)
+    setLossCallback(null)
+  }
 
   const fetchDeals = () => {
     setLoading(true)
@@ -199,11 +224,26 @@ export default function NegociosPage() {
       })
   }, [])
 
+  const consultantsList = useMemo(() => {
+    const set = new Set<string>()
+    deals.forEach((d) => {
+      if (d.usuario_nome) {
+        set.add(d.usuario_nome)
+      }
+    })
+    return Array.from(set).sort()
+  }, [deals])
+
   const filteredDeals = useMemo(() => {
     return deals.filter((deal) => {
       const matchesCampaign =
         selectedCampaign === 'all' ||
         deal.campaign_name === selectedCampaign
+
+      const matchesConsultant =
+        selectedConsultant === 'all' ||
+        (selectedConsultant === 'unassigned' && !deal.usuario_nome) ||
+        deal.usuario_nome === selectedConsultant
 
       const query = searchQuery.toLowerCase().trim()
       const matchesSearch =
@@ -212,9 +252,9 @@ export default function NegociosPage() {
         (deal.phone || '').toLowerCase().includes(query) ||
         (deal.email || '').toLowerCase().includes(query)
 
-      return matchesCampaign && matchesSearch
+      return matchesCampaign && matchesConsultant && matchesSearch
     })
-  }, [deals, selectedCampaign, searchQuery])
+  }, [deals, selectedCampaign, selectedConsultant, searchQuery])
 
   const kpis = useMemo(() => {
     const activeDeals = filteredDeals.filter((d) => d.etapa !== 'lost')
@@ -245,6 +285,27 @@ export default function NegociosPage() {
     const dealToMove = deals.find((d) => d.id === dealId)
     if (!dealToMove || dealToMove.etapa === targetStage) return
 
+    if (targetStage === 'Perdido') {
+      promptLossReason(dealToMove, async (reason, comment) => {
+        const previousDeals = [...deals]
+        setDeals((prev) =>
+          prev.map((d) => (d.id === dealId ? { ...d, etapa: targetStage } : d))
+        )
+        try {
+          await negociosService.updateNegocio(dealId, {
+            etapa: targetStage,
+            valor: dealToMove.valor,
+            loss_reason: reason,
+            loss_comment: comment
+          })
+        } catch (err) {
+          console.error('Failed to update stage on server:', err)
+          setDeals(previousDeals)
+        }
+      })
+      return
+    }
+
     // Optimistic update
     const previousDeals = [...deals]
     setDeals((prev) =>
@@ -272,6 +333,27 @@ export default function NegociosPage() {
 
     if (currentIdx === nextIdx) return
     const targetStage = COLUMNS[nextIdx].id
+
+    if (targetStage === 'Perdido') {
+      promptLossReason(deal, async (reason, comment) => {
+        const previousDeals = [...deals]
+        setDeals((prev) =>
+          prev.map((d) => (d.id === deal.id ? { ...d, etapa: targetStage } : d))
+        )
+        try {
+          await negociosService.updateNegocio(deal.id, {
+            etapa: targetStage,
+            valor: deal.valor,
+            loss_reason: reason,
+            loss_comment: comment
+          })
+        } catch (err) {
+          console.error('Failed to update stage:', err)
+          setDeals(previousDeals)
+        }
+      })
+      return
+    }
 
     const previousDeals = [...deals]
     setDeals((prev) =>
@@ -466,6 +548,24 @@ export default function NegociosPage() {
           </select>
           <Filter className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[var(--text-tertiary)] stroke-[1.5] pointer-events-none" />
         </div>
+
+        {/* Consultant select */}
+        <div className="relative w-full md:w-64">
+          <select
+            value={selectedConsultant}
+            onChange={(e) => setSelectedConsultant(e.target.value)}
+            className="w-full h-8 pl-3 pr-8 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] appearance-none transition-colors duration-150"
+          >
+            <option value="all">Todos os Consultores</option>
+            <option value="unassigned">Sem Consultor (Não atribuídos)</option>
+            {consultantsList.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <Filter className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[var(--text-tertiary)] stroke-[1.5] pointer-events-none" />
+        </div>
       </div>
 
       {/* Kanban Board */}
@@ -565,6 +665,14 @@ export default function NegociosPage() {
                             </span>
                             <span className="text-[10px] text-[var(--text-secondary)]">{deal.platform || 'Meta'}</span>
                           </div>
+
+                          {/* Consultant Name */}
+                          {deal.usuario_nome && (
+                            <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1 font-medium bg-[var(--surface-raised)]/40 px-2 py-0.5 rounded border border-dashed border-[var(--border)] w-fit max-w-full truncate">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                              <span className="truncate">Consultor: {deal.usuario_nome}</span>
+                            </div>
+                          )}
 
                           {/* Editable Value Box */}
                           <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
@@ -845,6 +953,81 @@ export default function NegociosPage() {
                   </>
                 ) : null}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loss Reason Modal */}
+      {lossModalOpen && lossDeal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl overflow-hidden text-[var(--text-primary)] transition-colors duration-150 animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-[var(--border)] bg-[var(--surface-raised)] flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Confirmar Perda de Negócio</h3>
+                <p className="text-xs text-[var(--text-secondary)]">Lead: {lossDeal.full_name}</p>
+              </div>
+              <button
+                onClick={closeLossModal}
+                className="p-1 rounded-md border border-[var(--border)] bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-150"
+              >
+                <X className="h-4 w-4 stroke-[1.5]" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+                  Motivo da Perda
+                </label>
+                <select
+                  value={lossReason}
+                  onChange={(e) => setLossReason(e.target.value)}
+                  className="w-full h-9 px-3 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
+                >
+                  <option value="Sem interesse">Sem interesse</option>
+                  <option value="Preço alto / Sem orçamento">Preço alto / Sem orçamento</option>
+                  <option value="Fora do perfil">Fora do perfil / Desqualificado</option>
+                  <option value="Não atende / Sem contato">Não atende / Sem contato</option>
+                  <option value="Decidiu por concorrente">Decidiu por concorrente</option>
+                  <option value="Outro">Outro</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+                  Observações / Comentários
+                </label>
+                <textarea
+                  value={lossComment}
+                  onChange={(e) => setLossComment(e.target.value)}
+                  placeholder="Descreva detalhes sobre o motivo de perda..."
+                  rows={3}
+                  className="w-full p-3 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150 resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-[var(--border)] bg-[var(--surface-raised)] flex items-center justify-end gap-2">
+              <button
+                onClick={closeLossModal}
+                className="h-9 px-4 border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm font-medium rounded-md transition-colors duration-150 bg-transparent hover:bg-[var(--surface)]"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (lossCallback) {
+                    lossCallback(lossReason, lossComment)
+                  }
+                }}
+                className="h-9 px-4 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors duration-150"
+              >
+                Confirmar Perda
+              </button>
             </div>
           </div>
         </div>
