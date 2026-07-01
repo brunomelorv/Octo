@@ -13,8 +13,10 @@ export interface Negocio {
   valor: number
   updated_at?: string
   status_chamada: string
+  call_anotacoes?: string
   usuario_email?: string | null
   usuario_nome?: string | null
+  tags?: string | null
 }
 
 export const negociosService = {
@@ -23,7 +25,7 @@ export const negociosService = {
     return response.data
   },
 
-  async updateNegocio(leadId: string, data: { etapa: string; valor: number; loss_reason?: string | null; loss_comment?: string | null }): Promise<any> {
+  async updateNegocio(leadId: string, data: { etapa: string; valor: number; loss_reason?: string | null; loss_comment?: string | null; tags?: string | null }): Promise<any> {
     const response = await api.put(`/negocios/${leadId}`, data)
     return response.data
   },

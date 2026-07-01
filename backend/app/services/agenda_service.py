@@ -28,9 +28,13 @@ async def get_agenda(date_str: str) -> list[dict]:
     LEFT JOIN leads l ON c.telefone_normalizado = l.phone
     LEFT JOIN negocios n ON n.lead_id = l.id
     LEFT JOIN agenda_completions ac ON ac.chamada_id = c.id
-    WHERE c.resumo_ligacao LIKE '%{target_date_formatted}%'
-       OR c.reuniao_agendada LIKE '%{date_str}%'
-       OR c.reuniao_agendada LIKE '%{target_date_formatted}%'
+    WHERE (
+           c.resumo_ligacao LIKE '%{target_date_formatted}%'
+           OR c.reuniao_agendada LIKE '%{date_str}%'
+           OR c.reuniao_agendada LIKE '%{target_date_formatted}%'
+       )
+       AND (n.etapa != 'Perdido' OR n.etapa IS NULL)
+       AND (c.resumo_ligacao NOT LIKE '%{{lead desqualificado}}%' OR c.resumo_ligacao IS NULL)
     ORDER BY c.data_hora DESC
     """
     

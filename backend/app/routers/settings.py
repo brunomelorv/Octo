@@ -60,6 +60,7 @@ async def fetch_my_permissions(current_user: UserResponse = Depends(get_current_
 class PersonalizacaoData(BaseModel):
     system_name: str = "Portal do Frank"
     logo_base64: str = ""
+    favicon_base64: str = ""
     primary_color: str = ""
 
 @router.get("/personalizacao", response_model=PersonalizacaoData)
@@ -69,6 +70,7 @@ async def fetch_personalizacao():
     return PersonalizacaoData(
         system_name=data.get("system_name", "Portal do Frank"),
         logo_base64=data.get("logo_base64", ""),
+        favicon_base64=data.get("favicon_base64", ""),
         primary_color=data.get("primary_color", "")
     )
 
@@ -94,3 +96,16 @@ async def save_distribuicao(data: DistribuicaoData, current_user: UserResponse =
     await update_settings("distribuicao", data.model_dump())
     return data
 
+
+class CustomTagsData(BaseModel):
+    tags: List[str] = ["Quente", "Prioridade", "Falta Dinheiro", "Ligar depois"]
+
+@router.get("/custom-tags", response_model=CustomTagsData)
+async def fetch_custom_tags():
+    data = await get_settings("custom_tags")
+    return CustomTagsData(tags=data.get("tags", ["Quente", "Prioridade", "Falta Dinheiro", "Ligar depois"]))
+
+@router.put("/custom-tags", response_model=CustomTagsData)
+async def save_custom_tags(data: CustomTagsData, current_user: UserResponse = Depends(require_user_manager)):
+    await update_settings("custom_tags", data.model_dump())
+    return data

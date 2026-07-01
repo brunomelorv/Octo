@@ -13,7 +13,7 @@ export const authService = {
   },
 
   async getMyPermissions() {
-    const response = await api.get('/config/my-permissions')
+    const response = await api.get('/settings/my-permissions')
     return response.data
   },
 

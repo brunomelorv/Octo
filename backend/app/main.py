@@ -1,6 +1,9 @@
-import logging
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, APIRouter, Request
+import logging
+
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, APIRouter, Request
+
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter, Request
@@ -43,7 +46,8 @@ async def lifespan(app: FastAPI):
             valor REAL DEFAULT 0.0,
             updated_at TEXT,
             usuario_email TEXT,
-            usuario_nome TEXT
+            usuario_nome TEXT,
+            tags TEXT
         );
         """)
         # Backwards compatibility migrations
@@ -53,6 +57,10 @@ async def lifespan(app: FastAPI):
             pass
         try:
             await query("ALTER TABLE negocios ADD COLUMN usuario_nome TEXT;")
+        except Exception:
+            pass
+        try:
+            await query("ALTER TABLE negocios ADD COLUMN tags TEXT;")
         except Exception:
             pass
             

@@ -5,6 +5,7 @@ import type { Negocio } from '../services/negocios'
 import { campanhasService } from '../services/campanhas'
 import type { CampanhasResponse } from '../services/campanhas'
 import type { LeadWithCalls, Call } from '../types/lead'
+import api from '../services/api'
 import WhatsAppTemplateSelector from '../components/WhatsAppTemplateSelector'
 import { leadsService } from '../services/leads'
 import { agendaService } from '../services/agenda'
@@ -179,6 +180,7 @@ function classifyCall(call: Call) {
 export default function NegociosPage() {
   const { user } = useAuth()
   const [deals, setDeals] = useState<Negocio[]>([])
+  const [availableTags, setAvailableTags] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -189,6 +191,8 @@ export default function NegociosPage() {
 
   const [editingDealId, setEditingDealId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
+  const [editingTagId, setEditingTagId] = useState<string | null>(null)
+  const [editingTagValue, setEditingTagValue] = useState('')
 
   const [selectedLead, setSelectedLead] = useState<LeadWithCalls | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -250,6 +254,14 @@ export default function NegociosPage() {
       .catch((err) => {
         console.error('Error fetching campaigns:', err)
       })
+
+    api.get('/settings/custom-tags')
+      .then((res) => {
+        if (res.data && res.data.tags) {
+          setAvailableTags(res.data.tags)
+        }
+      })
+      .catch(err => console.error("Error fetching tags", err))
   }, [])
 
   const consultantsList = useMemo(() => {
@@ -392,6 +404,33 @@ export default function NegociosPage() {
       await negociosService.updateNegocio(deal.id, { etapa: targetStage, valor: deal.valor })
     } catch (err) {
       console.error('Failed to update stage:', err)
+      setDeals(previousDeals)
+    }
+  }
+
+  const handleStartEditTag = (deal: Negocio, e: MouseEvent) => {
+    e.stopPropagation()
+    setEditingTagId(deal.id)
+    setEditingTagValue(deal.tags || '')
+  }
+
+  const handleSaveTag = async (deal: Negocio) => {
+    const val = editingTagValue.trim()
+    if (val === (deal.tags || '')) {
+      setEditingTagId(null)
+      return
+    }
+
+    const previousDeals = [...deals]
+    setDeals((prev) =>
+      prev.map((d) => (d.id === deal.id ? { ...d, tags: val } : d))
+    )
+    setEditingTagId(null)
+
+    try {
+      await negociosService.updateNegocio(deal.id, { etapa: deal.etapa, valor: deal.valor, tags: val })
+    } catch (err) {
+      console.error('Failed to save deal tags:', err)
       setDeals(previousDeals)
     }
   }
@@ -686,12 +725,76 @@ export default function NegociosPage() {
                             </span>
                             <span className="text-[10px] text-[var(--text-secondary)]">{deal.platform || 'Meta'}</span>
                           </div>
+                          
+                          {/* Agenda/Manual Tag from latest comment */}
+                          {deal.call_anotacoes && deal.call_anotacoes.match(/^\[Tag: (.*?)\]/) && (
+                            (() => {
+                              const match = deal.call_anotacoes.match(/^\[Tag: (.*?)\]/);
+                              const tagStr = match ? match[1] : null;
+                              if (!tagStr) return null;
+                              
+                              let colorClass = "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400";
+                              if (tagStr.includes('Tarefa')) colorClass = "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400";
+                              if (tagStr.includes('Chamada')) colorClass = "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400";
+                              if (tagStr.includes('Reunião Realizada')) colorClass = "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400";
+
+                              return (
+                                <div className={`w-fit px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest rounded shadow-sm border ${colorClass} mt-1`} title="Ação registrada na Agenda do Dia">
+                                  {tagStr}
+                                </div>
+                              )
+                            })()
+                          )}
 
                           {/* Consultant Name */}
                           {deal.usuario_nome && (
                             <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1 font-medium bg-[var(--surface-raised)]/40 px-2 py-0.5 rounded border border-dashed border-[var(--border)] w-fit max-w-full truncate">
                               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                               <span className="truncate">Consultor: {deal.usuario_nome}</span>
+                            </div>
+                          )}
+
+                          {/* Editable Custom Tags */}
+                          {editingTagId === deal.id ? (
+                            <div className="flex items-center gap-1.5 w-full" onClick={(e) => e.stopPropagation()}>
+                              <select
+                                value={editingTagValue}
+                                onChange={(e) => {
+                                  setEditingTagValue(e.target.value)
+                                }}
+                                className="w-full h-6 px-1.5 text-[10px] border border-[var(--accent)] rounded bg-[var(--surface)] focus:outline-none text-[var(--text-primary)]"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Escape') setEditingTagId(null)
+                                }}
+                              >
+                                <option value="">Sem Tag</option>
+                                {availableTags.map(tag => (
+                                  <option key={tag} value={tag}>{tag}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => handleSaveTag(deal)}
+                                className="p-0.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] rounded"
+                              >
+                                <Check className="h-3 w-3 stroke-[1.5]" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {deal.tags ? (
+                                deal.tags.split(',').map(t => t.trim()).filter(Boolean).map((t, idx) => (
+                                  <div key={idx} className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1 font-medium bg-[var(--surface-raised)]/40 px-2 py-0.5 rounded border border-dashed border-[var(--border)] w-fit max-w-full truncate cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors" onClick={(e) => handleStartEditTag(deal, e)} title="Clique para editar as tags">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-purple-500 shrink-0"></span>
+                                    <span className="truncate">{t}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-[10px] text-[var(--text-tertiary)] flex items-center gap-1 font-medium bg-[var(--surface)] px-2 py-0.5 rounded border border-dashed border-[var(--border)] w-fit max-w-full truncate cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors" onClick={(e) => handleStartEditTag(deal, e)} title="Clique para adicionar tags">
+                                  <Sparkles className="h-2.5 w-2.5" />
+                                  <span className="truncate">Adicionar Tag</span>
+                                </div>
+                              )}
                             </div>
                           )}
 
@@ -1073,48 +1176,24 @@ export default function NegociosPage() {
                   className="w-full h-9 px-3 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
                 >
                   <option value="" disabled>Selecione um motivo</option>
-                  <optgroup label="Agendamento e Retorno">
-                    <option value="Agendamento e Retorno">Agendamento e Retorno</option>
-                    <option value="Pediu para Ligar Depois">Pediu para Ligar Depois</option>
-                    <option value="Agendou Reunião">Agendou Reunião</option>
-                    <option value="Aguardando Retorno do Lead">Aguardando Retorno do Lead</option>
-                  </optgroup>
-                  <optgroup label="Interesse Comercial">
-                    <option value="Interesse Comercial">Interesse Comercial</option>
-                    <option value="Interesse Geral no Produto">Interesse Geral no Produto</option>
-                    <option value="Pediu Mais Informações / Apresentação">Pediu Mais Informações / Apresentação</option>
-                    <option value="Necessidade Alinhada">Necessidade Alinhada</option>
-                  </optgroup>
-                  <optgroup label="Sem Contato Efetivo">
-                    <option value="Sem Contato Efetivo">Sem Contato Efetivo</option>
-                    <option value="Caixa Postal / Chamando">Caixa Postal / Chamando</option>
-                    <option value="Ligação Curta / Sem Diálogo">Ligação Curta / Sem Diálogo</option>
-                    <option value="Lead Ocupado / Em Reunião">Lead Ocupado / Em Reunião</option>
-                  </optgroup>
-                  <optgroup label="Fase de Avaliação">
-                    <option value="Fase de Avaliação">Fase de Avaliação</option>
-                    <option value="Avaliando Internamente">Avaliando Internamente</option>
-                  </optgroup>
-                  <optgroup label="Sem Fit Comercial">
-                    <option value="Sem Fit Comercial">Sem Fit Comercial</option>
-                    <option value="Fora do Perfil de Cliente Ideal">Fora do Perfil de Cliente Ideal</option>
-                    <option value="Sem Orçamento / Caro">Sem Orçamento / Caro</option>
-                  </optgroup>
-                  <optgroup label="Sem Interesse">
-                    <option value="Sem Interesse">Sem Interesse</option>
-                    <option value="Recusa Direta / Sem Interesse">Recusa Direta / Sem Interesse</option>
-                    <option value="Lead Hostil / Irritado">Lead Hostil / Irritado</option>
-                  </optgroup>
-                  <optgroup label="Erro de Cadastro">
-                    <option value="Erro de Cadastro">Erro de Cadastro</option>
-                    <option value="Número Errado / Outra Pessoa">Número Errado / Outra Pessoa</option>
-                  </optgroup>
-                  <optgroup label="Outros">
-                    <option value="Fit de Perfil">Fit de Perfil</option>
-                    <option value="Problemas de Comunicação">Problemas de Comunicação</option>
-                    <option value="Falta de Tempo Pediu para Ligar Depois">Falta de Tempo Pediu para Ligar Depois</option>
-                    <option value="Outro">Outro</option>
-                  </optgroup>
+                  <option value="Atividade Conflitante">Atividade Conflitante - Atua na concorrência e não aceita exclusividade</option>
+                  <option value="Contato Incorreto ou Inexistente">Contato Incorreto ou Inexistente - Tentativas de contato sem sucesso</option>
+                  <option value="Discordância da COF">Discordância da COF - Cláusulas não validadas</option>
+                  <option value="Discordância do Contrato de Franquias">Discordância do Contrato de Franquias - Cláusulas não validadas</option>
+                  <option value="Dicordância das Diretrizes da Franqueadora">Dicordância das Diretrizes da Franqueadora - Risco conflito com a franqueadora</option>
+                  <option value="Falta de Capital para Investimento">Falta de Capital para Investimento - Sem capital</option>
+                  <option value="Já temos Franqueado na Região">Já temos Franqueado na Região - Território ocupado</option>
+                  <option value="Lead deixou de Retornar Contatos">Lead deixou de Retornar Contatos - Sem retorno</option>
+                  <option value="Lead Desinteressado">Lead Desinteressado - Modelo de negócio não aderente</option>
+                  <option value="Lead Desistente">Lead Desistente - Perspectiva financeira incompatível para o Lead</option>
+                  <option value="Não Aprovado pela Franqueadora">Não Aprovado pela Franqueadora - KYC | Compliance</option>
+                  <option value="Fit Cultural">Fit Cultural - Não adequado à cultura da franqueadora / Perfil não aderente</option>
+                  <option value="Lead Duplicado">Lead Duplicado - Duplicidade de registro</option>
+                  <option value="Lead Cidade >= 50K Habitantes">Lead Cidade &gt;= 50K Habitantes - Não atende premissa máxima população na região</option>
+                  <option value="Registro Indevido ou Desconhecido">Registro Indevido ou Desconhecido - Alega não ter preenchido o formulário</option>
+                  <option value="Não Enviou Documentação">Não Enviou Documentação - Desistência na etapa documental</option>
+                  <option value="Reprovado em KYC">Reprovado em KYC - KYC</option>
+                  <option value="Alta Expectativa Financeira">Alta Expectativa Financeira - Perfil não aderente</option>
                 </select>
               </div>
 

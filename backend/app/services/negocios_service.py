@@ -29,7 +29,7 @@ async def get_negocios(campaign_id=None, search=None, user=None) -> list[dict]:
         
     sql = f"""
     SELECT l.id, l.full_name, l.phone, l.email, l.city, l.campaign_name, l.platform, l.created_time,
-           n.etapa, n.valor, n.updated_at, n.usuario_email, n.usuario_nome,
+           n.etapa, n.valor, n.updated_at, n.usuario_email, n.usuario_nome, n.tags,
            c.data_hora as call_date, 
            c.duracao_segundos as call_duration, 
            c.resumo_ligacao as call_summary, 
@@ -37,7 +37,8 @@ async def get_negocios(campaign_id=None, search=None, user=None) -> list[dict]:
            c.tag as call_tag, 
            c.status_ligacao as call_status_orig,
            c.link_gravacao as call_recording,
-           c.telefone_normalizado as call_phone
+           c.telefone_normalizado as call_phone,
+           c.anotacoes as call_anotacoes
     FROM leads l
     LEFT JOIN negocios n ON n.lead_id = l.id
     LEFT JOIN (
@@ -91,7 +92,7 @@ async def get_negocios(campaign_id=None, search=None, user=None) -> list[dict]:
         
     return negocios_list
 
-async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email: str = "", user_name: str = "", loss_reason: str = None, loss_comment: str = None) -> bool:
+async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email: str = "", user_name: str = "", loss_reason: str = None, loss_comment: str = None, tags: str = None) -> bool:
     """
     Saves or updates a deal's stage and value, and writes a history audit log.
     """
@@ -107,10 +108,16 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
     
     if exists:
         etapa_anterior = exists[0]["etapa"]
-        await query(
-            "UPDATE negocios SET etapa = ?, valor = ?, updated_at = ?, usuario_email = ?, usuario_nome = ? WHERE lead_id = ?",
-            (etapa, valor, updated_at, user_email, user_name, lead_id)
-        )
+        if tags is not None:
+            await query(
+                "UPDATE negocios SET etapa = ?, valor = ?, updated_at = ?, usuario_email = ?, usuario_nome = ?, tags = ? WHERE lead_id = ?",
+                (etapa, valor, updated_at, user_email, user_name, tags, lead_id)
+            )
+        else:
+            await query(
+                "UPDATE negocios SET etapa = ?, valor = ?, updated_at = ?, usuario_email = ?, usuario_nome = ? WHERE lead_id = ?",
+                (etapa, valor, updated_at, user_email, user_name, lead_id)
+            )
     else:
         # Determine dynamic previous stage for history accuracy
         phone = lead.get("phone")
@@ -133,8 +140,8 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
                     etapa_anterior = "Contatado"
                     
         await query(
-            "INSERT INTO negocios (lead_id, etapa, valor, updated_at, usuario_email, usuario_nome) VALUES (?, ?, ?, ?, ?, ?)",
-            (lead_id, etapa, valor, updated_at, user_email, user_name)
+            "INSERT INTO negocios (lead_id, etapa, valor, updated_at, usuario_email, usuario_nome, tags) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (lead_id, etapa, valor, updated_at, user_email, user_name, tags or "")
         )
         
     # Insert audit entry into history table

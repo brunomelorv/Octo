@@ -26,7 +26,7 @@ export default function DistribuicaoLeadsPage() {
     try {
       const [usersRes, distRes] = await Promise.all([
         api.get('/auth/users'),
-        api.get('/config/distribuicao')
+        api.get('/settings/distribuicao')
       ])
       setUsers(usersRes.data)
       if (distRes.data) {
@@ -45,7 +45,7 @@ export default function DistribuicaoLeadsPage() {
     setIsSaving(true)
     setMessage(null)
     try {
-      await api.put('/config/distribuicao', {
+      await api.put('/settings/distribuicao', {
         auto_distribute: autoDistribute,
         participating_users: participatingUsers
       })

@@ -6,6 +6,8 @@ export default function PersonalizacaoPage() {
   const [systemName, setSystemName] = useState('Portal do Frank')
   const [primaryColor, setPrimaryColor] = useState('')
   const [logoBase64, setLogoBase64] = useState('')
+  const [faviconBase64, setFaviconBase64] = useState('')
+  const [customTagsText, setCustomTagsText] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null)
@@ -17,11 +19,18 @@ export default function PersonalizacaoPage() {
   const fetchData = async () => {
     setIsLoading(true)
     try {
-      const res = await api.get('/settings/personalizacao')
+      const [res, tagsRes] = await Promise.all([
+        api.get('/settings/personalizacao'),
+        api.get('/settings/custom-tags')
+      ])
       if (res.data) {
         setSystemName(res.data.system_name || 'Portal do Frank')
         setPrimaryColor(res.data.primary_color || '')
         setLogoBase64(res.data.logo_base64 || '')
+        setFaviconBase64(res.data.favicon_base64 || '')
+      }
+      if (tagsRes.data && tagsRes.data.tags) {
+        setCustomTagsText(tagsRes.data.tags.join(', '))
       }
     } catch (err) {
       console.error('Failed to fetch config:', err)
@@ -38,7 +47,11 @@ export default function PersonalizacaoPage() {
       await api.put('/settings/personalizacao', {
         system_name: systemName,
         primary_color: primaryColor,
-        logo_base64: logoBase64
+        logo_base64: logoBase64,
+        favicon_base64: faviconBase64
+      })
+      await api.put('/settings/custom-tags', {
+        tags: customTagsText.split(',').map(t => t.trim()).filter(Boolean)
       })
       window.location.reload()
       setMessage({ text: 'Configurações salvas com sucesso!', type: 'success' })
@@ -106,6 +119,21 @@ export default function PersonalizacaoPage() {
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-sm p-6">
         <div className="space-y-8">
           <div className="space-y-3">
+            <label className="text-sm font-medium text-[var(--text-primary)] flex items-center gap-2">
+              <Type className="w-4 h-4 text-[var(--text-secondary)]" />
+              Tags do CRM (Negócios)
+            </label>
+            <input
+              type="text"
+              value={customTagsText}
+              onChange={(e) => setCustomTagsText(e.target.value)}
+              placeholder="Ex: Quente, Prioridade, Sem Dinheiro"
+              className="w-full md:w-3/4 px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+            />
+            <p className="text-xs text-[var(--text-secondary)]">As tags que os consultores poderão selecionar no Kanban. Separe-as por vírgulas.</p>
+          </div>
+
+          <div className="space-y-3 border-t border-[var(--border)] pt-8">
             <label className="text-sm font-medium text-[var(--text-primary)] flex items-center gap-2">
               <Type className="w-4 h-4 text-[var(--text-secondary)]" />
               Nome do Sistema
@@ -187,6 +215,60 @@ export default function PersonalizacaoPage() {
                   </button>
                 </div>
               )}
+            </div>
+            
+            <div className="space-y-3 border-t border-[var(--border)] pt-8 mt-8">
+              <label className="text-sm font-medium text-[var(--text-primary)] flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-[var(--text-secondary)]" />
+                Ícone da Aba do Navegador (Favicon)
+              </label>
+              <p className="text-xs text-[var(--text-secondary)]">Recomendado formato quadrado (ex: 32x32 ou 64x64). Aparecerá na aba do navegador.</p>
+              <div className="flex flex-col md:flex-row items-start gap-8">
+                <div className="w-full md:flex-1">
+                  <label className="block border-2 border-dashed border-[var(--border)] bg-[var(--background)] rounded-xl p-8 text-center hover:border-[var(--accent)] hover:bg-[var(--surface)] transition-all cursor-pointer relative group">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          if (file.size > 1024 * 1024 * 2) {
+                            return
+                          }
+                          const reader = new FileReader()
+                          reader.onloadend = () => {
+                            setFaviconBase64(reader.result as string)
+                          }
+                          reader.readAsDataURL(file)
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                    />
+                    <div className="flex flex-col items-center gap-3 text-[var(--text-secondary)] group-hover:text-[var(--accent)] transition-colors">
+                      <ImageIcon className="w-10 h-10" />
+                      <div>
+                        <div className="text-sm font-medium">Clique ou arraste o ícone aqui</div>
+                        <div className="text-xs mt-1 opacity-75">PNG, JPG ou SVG (Quadrado)</div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+                
+                {faviconBase64 && (
+                  <div className="w-full md:w-32 flex flex-col gap-3 items-center">
+                    <div className="text-xs font-medium text-[var(--text-secondary)] self-start">Visualização</div>
+                    <div className="w-16 h-16 bg-[var(--background)] border border-[var(--border)] rounded-xl flex items-center justify-center p-2 shadow-sm">
+                      <img src={faviconBase64} alt="Favicon preview" className="max-w-full max-h-full object-contain drop-shadow-sm rounded" />
+                    </div>
+                    <button 
+                      onClick={() => setFaviconBase64('')}
+                      className="text-sm text-red-500 hover:text-red-600 font-medium px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-md transition-colors w-full"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

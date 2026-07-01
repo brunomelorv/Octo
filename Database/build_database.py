@@ -522,7 +522,8 @@ def distribute_new_leads(db_conn):
             valor REAL DEFAULT 0.0,
             updated_at TEXT,
             usuario_email TEXT,
-            usuario_nome TEXT
+            usuario_nome TEXT,
+            tags TEXT
         );
         """)
         cursor.execute("""

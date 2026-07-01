@@ -6,6 +6,14 @@ import { negociosService } from '../services/negocios'
 import type { AgendaItem } from '../services/agenda'
 import WhatsAppTemplateSelector from '../components/WhatsAppTemplateSelector'
 
+const parseComment = (text: string) => {
+  const match = text.match(/^\[Tag: (.*?)\]\s*(.*)$/s)
+  if (match) {
+    return { tagStr: match[1], content: match[2] }
+  }
+  return { tagStr: null, content: text }
+}
+
 export default function AgendaPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [items, setItems] = useState<AgendaItem[]>([])
@@ -401,48 +409,24 @@ export default function AgendaPage() {
                               className="w-full bg-white dark:bg-[var(--surface)] border border-red-200 dark:border-red-800 rounded-lg px-3 py-1.5 text-sm"
                             >
                               <option value="" disabled>Selecione o motivo...</option>
-                              <optgroup label="Agendamento e Retorno">
-                                <option value="Agendamento e Retorno">Agendamento e Retorno</option>
-                                <option value="Pediu para Ligar Depois">Pediu para Ligar Depois</option>
-                                <option value="Agendou Reunião">Agendou Reunião</option>
-                                <option value="Aguardando Retorno do Lead">Aguardando Retorno do Lead</option>
-                              </optgroup>
-                              <optgroup label="Interesse Comercial">
-                                <option value="Interesse Comercial">Interesse Comercial</option>
-                                <option value="Interesse Geral no Produto">Interesse Geral no Produto</option>
-                                <option value="Pediu Mais Informações / Apresentação">Pediu Mais Informações / Apresentação</option>
-                                <option value="Necessidade Alinhada">Necessidade Alinhada</option>
-                              </optgroup>
-                              <optgroup label="Sem Contato Efetivo">
-                                <option value="Sem Contato Efetivo">Sem Contato Efetivo</option>
-                                <option value="Caixa Postal / Chamando">Caixa Postal / Chamando</option>
-                                <option value="Ligação Curta / Sem Diálogo">Ligação Curta / Sem Diálogo</option>
-                                <option value="Lead Ocupado / Em Reunião">Lead Ocupado / Em Reunião</option>
-                              </optgroup>
-                              <optgroup label="Fase de Avaliação">
-                                <option value="Fase de Avaliação">Fase de Avaliação</option>
-                                <option value="Avaliando Internamente">Avaliando Internamente</option>
-                              </optgroup>
-                              <optgroup label="Sem Fit Comercial">
-                                <option value="Sem Fit Comercial">Sem Fit Comercial</option>
-                                <option value="Fora do Perfil de Cliente Ideal">Fora do Perfil de Cliente Ideal</option>
-                                <option value="Sem Orçamento / Caro">Sem Orçamento / Caro</option>
-                              </optgroup>
-                              <optgroup label="Sem Interesse">
-                                <option value="Sem Interesse">Sem Interesse</option>
-                                <option value="Recusa Direta / Sem Interesse">Recusa Direta / Sem Interesse</option>
-                                <option value="Lead Hostil / Irritado">Lead Hostil / Irritado</option>
-                              </optgroup>
-                              <optgroup label="Erro de Cadastro">
-                                <option value="Erro de Cadastro">Erro de Cadastro</option>
-                                <option value="Número Errado / Outra Pessoa">Número Errado / Outra Pessoa</option>
-                              </optgroup>
-                              <optgroup label="Outros">
-                                <option value="Fit de Perfil">Fit de Perfil</option>
-                                <option value="Problemas de Comunicação">Problemas de Comunicação</option>
-                                <option value="Falta de Tempo Pediu para Ligar Depois">Falta de Tempo Pediu para Ligar Depois</option>
-                                <option value="Outro">Outro</option>
-                              </optgroup>
+                              <option value="Atividade Conflitante">Atividade Conflitante - Atua na concorrência e não aceita exclusividade</option>
+                              <option value="Contato Incorreto ou Inexistente">Contato Incorreto ou Inexistente - Tentativas de contato sem sucesso</option>
+                              <option value="Discordância da COF">Discordância da COF - Cláusulas não validadas</option>
+                              <option value="Discordância do Contrato de Franquias">Discordância do Contrato de Franquias - Cláusulas não validadas</option>
+                              <option value="Dicordância das Diretrizes da Franqueadora">Dicordância das Diretrizes da Franqueadora - Risco conflito com a franqueadora</option>
+                              <option value="Falta de Capital para Investimento">Falta de Capital para Investimento - Sem capital</option>
+                              <option value="Já temos Franqueado na Região">Já temos Franqueado na Região - Território ocupado</option>
+                              <option value="Lead deixou de Retornar Contatos">Lead deixou de Retornar Contatos - Sem retorno</option>
+                              <option value="Lead Desinteressado">Lead Desinteressado - Modelo de negócio não aderente</option>
+                              <option value="Lead Desistente">Lead Desistente - Perspectiva financeira incompatível para o Lead</option>
+                              <option value="Não Aprovado pela Franqueadora">Não Aprovado pela Franqueadora - KYC | Compliance</option>
+                              <option value="Fit Cultural">Fit Cultural - Não adequado à cultura da franqueadora / Perfil não aderente</option>
+                              <option value="Lead Duplicado">Lead Duplicado - Duplicidade de registro</option>
+                              <option value="Lead Cidade >= 50K Habitantes">Lead Cidade &gt;= 50K Habitantes - Não atende premissa máxima população na região</option>
+                              <option value="Registro Indevido ou Desconhecido">Registro Indevido ou Desconhecido - Alega não ter preenchido o formulário</option>
+                              <option value="Não Enviou Documentação">Não Enviou Documentação - Desistência na etapa documental</option>
+                              <option value="Reprovado em KYC">Reprovado em KYC - KYC</option>
+                              <option value="Alta Expectativa Financeira">Alta Expectativa Financeira - Perfil não aderente</option>
                             </select>
                           </div>
                           <div>
@@ -529,15 +513,30 @@ export default function AgendaPage() {
                 {item.comments && item.comments.length > 0 && (
                   <div className="mt-4 space-y-2">
                     <h5 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Comentários</h5>
-                    {item.comments.map(c => (
-                      <div key={c.id} className="bg-[var(--surface-raised)] p-3 rounded-lg border border-[var(--border)] text-sm">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-medium text-[var(--text-primary)]">{c.usuario_email.split('@')[0]}</span>
-                          <span className="text-[10px] text-[var(--text-secondary)]">{new Date(c.created_at).toLocaleString('pt-BR')}</span>
+                    {item.comments.map(c => {
+                      const { tagStr, content } = parseComment(c.comentario);
+                      
+                      // Assign colors based on tag content
+                      let colorClass = "bg-indigo-500 text-white border-indigo-600";
+                      if (tagStr?.includes('Tarefa')) colorClass = "bg-amber-500 text-white border-amber-600";
+                      if (tagStr?.includes('Chamada')) colorClass = "bg-emerald-500 text-white border-emerald-600";
+                      if (tagStr?.includes('Reunião Realizada')) colorClass = "bg-purple-500 text-white border-purple-600";
+
+                      return (
+                        <div key={c.id} className="bg-[var(--surface-raised)] p-3 rounded-lg border border-[var(--border)] text-sm relative mt-3 shadow-sm">
+                          {tagStr && (
+                            <div className={`absolute -top-2.5 right-3 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest rounded shadow-sm border ${colorClass} z-10`}>
+                              {tagStr}
+                            </div>
+                          )}
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="font-medium text-[var(--text-primary)]">{c.usuario_email.split('@')[0]}</span>
+                            <span className="text-[10px] text-[var(--text-secondary)]">{new Date(c.created_at).toLocaleString('pt-BR')}</span>
+                          </div>
+                          <p className="text-[var(--text-secondary)] whitespace-pre-wrap">{content}</p>
                         </div>
-                        <p className="text-[var(--text-secondary)]">{c.comentario}</p>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>

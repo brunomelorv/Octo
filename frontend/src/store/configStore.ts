@@ -3,6 +3,7 @@ import { create } from 'zustand'
 export interface PersonalizacaoConfig {
   system_name: string
   logo_base64: string
+  favicon_base64?: string
   primary_color: string
 }
 
@@ -15,6 +16,7 @@ export const useConfigStore = create<ConfigState>((set) => ({
   config: {
     system_name: 'Portal do Frank',
     logo_base64: '',
+    favicon_base64: '',
     primary_color: '',
   },
   setConfig: (config) => {
@@ -27,6 +29,22 @@ export const useConfigStore = create<ConfigState>((set) => ({
     } else {
       document.documentElement.style.removeProperty('--accent')
       document.documentElement.style.removeProperty('--accent-hover')
+    }
+    
+    // Update Document Title
+    if (config.system_name) {
+      document.title = config.system_name
+    }
+    
+    // Update Favicon
+    if (config.favicon_base64) {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']")
+      if (!link) {
+        link = document.createElement('link')
+        link.rel = 'icon'
+        document.getElementsByTagName('head')[0].appendChild(link)
+      }
+      link.href = config.favicon_base64
     }
   },
 }))
