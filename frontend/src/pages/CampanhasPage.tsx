@@ -13,6 +13,8 @@ import {
   BarChart3,
   Globe,
   Percent,
+  CalendarCheck,
+  Clock,
 } from 'lucide-react'
 import {
   Chart as ChartJS,
@@ -92,11 +94,13 @@ export default function CampanhasPage() {
     const totalCampanhas = filteredCampaigns.length
     const totalLeads = filteredCampaigns.reduce((sum, c) => sum + (c.total_leads || 0), 0)
     const totalChamadas = filteredCampaigns.reduce((sum, c) => sum + (c.total_chamadas || 0), 0)
+    const totalReunioes = filteredCampaigns.reduce((sum, c) => sum + (c.total_reunioes || 0), 0)
+    const totalRetornos = filteredCampaigns.reduce((sum, c) => sum + (c.total_retornos || 0), 0)
     
     // Average calls per lead (percentage of interaction rate)
     const taxaContato = totalLeads > 0 ? (totalChamadas / totalLeads) * 100 : 0
 
-    return { totalCampanhas, totalLeads, totalChamadas, taxaContato }
+    return { totalCampanhas, totalLeads, totalChamadas, totalReunioes, totalRetornos, taxaContato }
   }, [filteredCampaigns])
 
   // Setup data for Chart: Top 10 campaigns by lead volume
@@ -214,7 +218,7 @@ export default function CampanhasPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {/* KPI 1 */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
           <div className="space-y-1 min-w-0">
@@ -239,7 +243,31 @@ export default function CampanhasPage() {
           </div>
         </div>
 
-        {/* KPI 3 */}
+        {/* KPI 3: Reuniões Agendadas */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
+          <div className="space-y-1 min-w-0">
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)] block truncate">Reuniões Agendadas</span>
+            <h3 className="text-2xl font-semibold text-[var(--text-primary)]">{kpis.totalReunioes.toLocaleString('pt-BR')}</h3>
+            <p className="text-xs text-[var(--text-secondary)]">Reuniões marcadas na IA</p>
+          </div>
+          <div className="h-10 w-10 rounded-md bg-[var(--surface-raised)] flex items-center justify-center text-[var(--text-primary)] flex-shrink-0">
+            <CalendarCheck className="h-4 w-4 stroke-[1.5] text-emerald-500" />
+          </div>
+        </div>
+
+        {/* KPI 4: Retornos Solicitados */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
+          <div className="space-y-1 min-w-0">
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)] block truncate">Retornos Solicitados</span>
+            <h3 className="text-2xl font-semibold text-[var(--text-primary)]">{kpis.totalRetornos.toLocaleString('pt-BR')}</h3>
+            <p className="text-xs text-[var(--text-secondary)]">Pedidos de retorno marcados</p>
+          </div>
+          <div className="h-10 w-10 rounded-md bg-[var(--surface-raised)] flex items-center justify-center text-[var(--text-primary)] flex-shrink-0">
+            <Clock className="h-4 w-4 stroke-[1.5] text-indigo-500" />
+          </div>
+        </div>
+
+        {/* KPI 5 */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
           <div className="space-y-1 min-w-0">
             <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)] block truncate">Taxa Média de Contato</span>
@@ -253,7 +281,7 @@ export default function CampanhasPage() {
           </div>
         </div>
 
-        {/* KPI 4 */}
+        {/* KPI 6 */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
           <div className="space-y-1 min-w-0">
             <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)] block truncate">Campanhas Filtradas</span>
@@ -332,6 +360,8 @@ export default function CampanhasPage() {
                 <th className="px-4 py-3">Plataforma</th>
                 <th className="px-4 py-3 text-right">Leads</th>
                 <th className="px-4 py-3 text-right">Chamadas</th>
+                <th className="px-4 py-3 text-right">Reuniões</th>
+                <th className="px-4 py-3 text-right">Retornos</th>
                 <th className="px-4 py-3 text-center">Taxa de Contato / Engajamento</th>
                 <th className="px-4 py-3 text-center">Ações</th>
               </tr>
@@ -339,20 +369,20 @@ export default function CampanhasPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
                     <Activity className="h-5 w-5 animate-spin mx-auto mb-2 text-[var(--text-secondary)]" />
                     Carregando campanhas do sistema...
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-red-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-red-500">
                     {error}
                   </td>
                 </tr>
               ) : filteredCampaigns.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
                     Nenhuma campanha de marketing encontrada.
                   </td>
                 </tr>
@@ -381,7 +411,7 @@ export default function CampanhasPage() {
                           </div>
                         </div>
                       </td>
-
+ 
                       {/* Platform */}
                       <td className="px-4 py-3.5">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border capitalize ${getPlatformBadge(c.platform)}`}>
@@ -389,17 +419,27 @@ export default function CampanhasPage() {
                           {c.platform || 'Desconhecido'}
                         </span>
                       </td>
-
+ 
                       {/* Leads Count */}
                       <td className="px-4 py-3.5 text-right font-medium text-[var(--text-primary)]">
                         {c.total_leads.toLocaleString('pt-BR')}
                       </td>
-
+ 
                       {/* Calls Count */}
                       <td className="px-4 py-3.5 text-right font-medium text-[var(--text-primary)]">
                         {c.total_chamadas.toLocaleString('pt-BR')}
                       </td>
 
+                      {/* Reuniões Count */}
+                      <td className="px-4 py-3.5 text-right font-medium text-emerald-600 dark:text-emerald-400">
+                        {(c.total_reunioes || 0).toLocaleString('pt-BR')}
+                      </td>
+
+                      {/* Retornos Count */}
+                      <td className="px-4 py-3.5 text-right font-medium text-indigo-600 dark:text-indigo-400">
+                        {(c.total_retornos || 0).toLocaleString('pt-BR')}
+                      </td>
+ 
                       {/* Interaction Progress Bar */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center justify-center gap-3 max-w-[200px] mx-auto">
@@ -421,7 +461,7 @@ export default function CampanhasPage() {
                           </span>
                         </div>
                       </td>
-
+ 
                       {/* Actions */}
                       <td className="px-4 py-3.5 text-center">
                         <button

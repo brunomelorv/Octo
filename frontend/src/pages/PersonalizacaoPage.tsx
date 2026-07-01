@@ -17,7 +17,7 @@ export default function PersonalizacaoPage() {
   const fetchData = async () => {
     setIsLoading(true)
     try {
-      const res = await api.get('/config/personalizacao')
+      const res = await api.get('/settings/personalizacao')
       if (res.data) {
         setSystemName(res.data.system_name || 'Portal do Frank')
         setPrimaryColor(res.data.primary_color || '')
@@ -35,7 +35,7 @@ export default function PersonalizacaoPage() {
     setIsSaving(true)
     setMessage(null)
     try {
-      await api.put('/config/personalizacao', {
+      await api.put('/settings/personalizacao', {
         system_name: systemName,
         primary_color: primaryColor,
         logo_base64: logoBase64

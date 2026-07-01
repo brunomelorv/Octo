@@ -36,15 +36,6 @@ export default function AgendaPage() {
     'Perdido'
   ]
 
-  const LOSS_REASONS = [
-    'Caixa postal / Não atendido',
-    'Fora do perfil de cliente ideal',
-    'Recusa direta / Sem interesse',
-    'Lead hostil / irritado',
-    'Avaliando internamente / Esfriou',
-    'Pediu para ligar depois / Sumiu'
-  ]
-
   const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`
   const user = JSON.parse(localStorage.getItem('user') || '{}')
 
@@ -410,9 +401,48 @@ export default function AgendaPage() {
                               className="w-full bg-white dark:bg-[var(--surface)] border border-red-200 dark:border-red-800 rounded-lg px-3 py-1.5 text-sm"
                             >
                               <option value="" disabled>Selecione o motivo...</option>
-                              {LOSS_REASONS.map(reason => (
-                                <option key={reason} value={reason}>{reason}</option>
-                              ))}
+                              <optgroup label="Agendamento e Retorno">
+                                <option value="Agendamento e Retorno">Agendamento e Retorno</option>
+                                <option value="Pediu para Ligar Depois">Pediu para Ligar Depois</option>
+                                <option value="Agendou Reunião">Agendou Reunião</option>
+                                <option value="Aguardando Retorno do Lead">Aguardando Retorno do Lead</option>
+                              </optgroup>
+                              <optgroup label="Interesse Comercial">
+                                <option value="Interesse Comercial">Interesse Comercial</option>
+                                <option value="Interesse Geral no Produto">Interesse Geral no Produto</option>
+                                <option value="Pediu Mais Informações / Apresentação">Pediu Mais Informações / Apresentação</option>
+                                <option value="Necessidade Alinhada">Necessidade Alinhada</option>
+                              </optgroup>
+                              <optgroup label="Sem Contato Efetivo">
+                                <option value="Sem Contato Efetivo">Sem Contato Efetivo</option>
+                                <option value="Caixa Postal / Chamando">Caixa Postal / Chamando</option>
+                                <option value="Ligação Curta / Sem Diálogo">Ligação Curta / Sem Diálogo</option>
+                                <option value="Lead Ocupado / Em Reunião">Lead Ocupado / Em Reunião</option>
+                              </optgroup>
+                              <optgroup label="Fase de Avaliação">
+                                <option value="Fase de Avaliação">Fase de Avaliação</option>
+                                <option value="Avaliando Internamente">Avaliando Internamente</option>
+                              </optgroup>
+                              <optgroup label="Sem Fit Comercial">
+                                <option value="Sem Fit Comercial">Sem Fit Comercial</option>
+                                <option value="Fora do Perfil de Cliente Ideal">Fora do Perfil de Cliente Ideal</option>
+                                <option value="Sem Orçamento / Caro">Sem Orçamento / Caro</option>
+                              </optgroup>
+                              <optgroup label="Sem Interesse">
+                                <option value="Sem Interesse">Sem Interesse</option>
+                                <option value="Recusa Direta / Sem Interesse">Recusa Direta / Sem Interesse</option>
+                                <option value="Lead Hostil / Irritado">Lead Hostil / Irritado</option>
+                              </optgroup>
+                              <optgroup label="Erro de Cadastro">
+                                <option value="Erro de Cadastro">Erro de Cadastro</option>
+                                <option value="Número Errado / Outra Pessoa">Número Errado / Outra Pessoa</option>
+                              </optgroup>
+                              <optgroup label="Outros">
+                                <option value="Fit de Perfil">Fit de Perfil</option>
+                                <option value="Problemas de Comunicação">Problemas de Comunicação</option>
+                                <option value="Falta de Tempo Pediu para Ligar Depois">Falta de Tempo Pediu para Ligar Depois</option>
+                                <option value="Outro">Outro</option>
+                              </optgroup>
                             </select>
                           </div>
                           <div>

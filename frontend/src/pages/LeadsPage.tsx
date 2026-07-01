@@ -103,8 +103,29 @@ function classifyCall(call: Call) {
   const tag = (call.tag || '').toLowerCase()
   const dur = call.duracao_segundos || 0
   const reuniao = call.reuniao_agendada
+  let isRetorno = false
+  let isReuniao = false
 
   if (reuniao && String(reuniao).toLowerCase() !== 'none' && String(reuniao).trim() !== '') {
+    if (String(reuniao).toLowerCase().includes('retorno') || String(reuniao).toLowerCase().includes('retorno agendado')) {
+      isRetorno = true
+    } else {
+      isReuniao = true
+    }
+  }
+
+  if (!isRetorno && !isReuniao) {
+    if (resumo.includes('retorno agendado para') || resumo.includes('retorno para') || resumo.includes('agendado retorno')) {
+      isRetorno = true
+    } else if (resumo.includes('reunião agendada para') || resumo.includes('reuniao agendada para')) {
+      isReuniao = true
+    }
+  }
+
+  if (isRetorno) {
+    return { classif: 'Retorno Agendado', subcat: 'Aguardando Retorno do Lead', score: 7 }
+  }
+  if (isReuniao) {
     return { classif: 'Agendou Reunião', subcat: 'Qualificado / Agendou reunião', score: 8 }
   }
   if (resumo.includes('{lead quente}') || tag.includes('lead quente') || resumo.includes('reunião foi agendada')) {

@@ -457,9 +457,9 @@ export default function DashboardPage() {
       {activeTab === 'geral' && (
         <div className="space-y-4">
           {/* General KPIs Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">
-              <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Total de Leads</p>
+              <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Leads Totais</p>
               <div className="flex items-baseline gap-1.5 mt-1.5">
                 <span className="text-2xl font-semibold text-[var(--text-primary)]">{dashboardData.totalLeads}</span>
                 <span className="text-xs text-[var(--text-secondary)]">cadastros</span>
@@ -468,7 +468,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">
-              <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Taxa de Contato</p>
+              <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Taxa de contato</p>
               <div className="flex items-baseline gap-1.5 mt-1.5">
                 <span className="text-2xl font-semibold text-[var(--text-primary)]">{contactRate}%</span>
                 <span className="text-xs text-[var(--text-secondary)]">({dashboardData.contatos} contatados)</span>
@@ -477,25 +477,16 @@ export default function DashboardPage() {
             </div>
 
             <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">
-              <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Reuniões Agendadas</p>
-              <div className="flex items-baseline gap-1.5 mt-1.5">
-                <span className="text-2xl font-semibold text-[var(--text-primary)]">{dashboardData.agendados}</span>
-                <span className="text-xs text-[var(--text-secondary)]">({meetingRate}% conversão)</span>
-              </div>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">Agendamentos no Calendly/Google</p>
-            </div>
-
-            <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">
-              <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Conversão de Contatos</p>
+              <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Reuniões e Retornos</p>
               <div className="flex items-baseline gap-1.5 mt-1.5">
                 <span className="text-2xl font-semibold text-[var(--text-primary)]">
-                  {dashboardData.contatos > 0
-                    ? ((dashboardData.agendados / dashboardData.contatos) * 100).toFixed(1)
-                    : '0.0'}%
+                  {dashboardData.agendados + (dashboardData.funnel.aguardandoRetorno || 0)}
                 </span>
-                <span className="text-xs text-[var(--text-secondary)]">de contatos úteis</span>
+                <span className="text-xs text-[var(--text-secondary)]">
+                  ({dashboardData.agendados} agendados | {dashboardData.funnel.aguardandoRetorno || 0} retornos)
+                </span>
               </div>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">Conversão SDR pós-atendimento</p>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">Reuniões agendadas &amp; pedidos de retorno</p>
             </div>
 
             <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">

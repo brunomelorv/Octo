@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { FormEvent } from 'react'
+import { useState, useRef } from 'react'
+import type { FormEvent, ChangeEvent } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   KeyRound,
@@ -17,7 +17,9 @@ import {
   Palette,
   ChevronDown,
   ChevronRight,
-  Megaphone
+  Megaphone,
+  Camera,
+  Upload
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAuthStore } from '../../store/authStore'
@@ -37,6 +39,16 @@ export default function Sidebar() {
   const [savingPassword, setSavingPassword] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({ leads: true })
+
+  const setAuth = useAuthStore((state) => state.setAuth)
+  const token = useAuthStore((state) => state.token)
+  const permissions = useAuthStore((state) => state.permissions)
+
+  const [avatarOpen, setAvatarOpen] = useState(false)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
+  const [savingAvatar, setSavingAvatar] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const navItems = [
     {
@@ -108,8 +120,6 @@ export default function Sidebar() {
     },
   ]
 
-  const permissions = useAuthStore((state) => state.permissions)
-
   const filterItem = (item: any) => {
     const pageId = item.id || item.path.replace('/', '').replace('-', '_')
     if (permissions && permissions.length > 0) {
@@ -170,6 +180,44 @@ export default function Sidebar() {
       setPasswordError(err?.response?.data?.detail || 'Não foi possível alterar a senha.')
     } finally {
       setSavingPassword(false)
+    }
+  }
+
+  const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setAvatarError('A imagem deve ter no máximo 2MB.')
+        return
+      }
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string)
+        setAvatarError(null)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleAvatarSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!avatarPreview) {
+      setAvatarError('Por favor, selecione uma imagem de perfil.')
+      return
+    }
+    setSavingAvatar(true)
+    setAvatarError(null)
+    try {
+      await authService.updateAvatar(avatarPreview)
+      if (user && token) {
+        setAuth({ ...user, avatar_base64: avatarPreview }, token, permissions)
+      }
+      setAvatarOpen(false)
+      setAvatarPreview(null)
+    } catch (err: any) {
+      setAvatarError('Não foi possível salvar a imagem.')
+    } finally {
+      setSavingAvatar(false)
     }
   }
 
@@ -282,6 +330,16 @@ export default function Sidebar() {
             </button>
             <button
               onClick={() => {
+                setAvatarOpen(true)
+                setMenuOpen(false)
+              }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-gray-300 hover:bg-white/5 hover:text-white text-left transition-colors duration-150"
+            >
+              <Camera className="h-3.5 w-3.5" />
+              Alterar foto de perfil
+            </button>
+            <button
+              onClick={() => {
                 logout()
                 setMenuOpen(false)
               }}
@@ -375,6 +433,86 @@ export default function Sidebar() {
                     className="flex-1 h-8 px-3 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-medium transition-colors duration-150 disabled:opacity-60"
                   >
                     {savingPassword ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {avatarOpen && (
+        <div className="fixed inset-0 z-[60]">
+          <div className="absolute inset-0 bg-black/45 backdrop-blur-xs" onClick={() => setAvatarOpen(false)} />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-sm bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg overflow-hidden transition-colors duration-150 animate-in zoom-in-95 duration-200">
+              <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Camera className="h-4 w-4 text-[var(--accent)]" />
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-widest text-[var(--text-secondary)]">Alterar foto de perfil</h3>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setAvatarOpen(false)}
+                  className="p-1 rounded-md border border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors duration-150 text-[var(--text-secondary)]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAvatarSubmit} className="p-4 space-y-4">
+                {avatarError && (
+                  <div className="rounded-md border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900/30 px-3 py-2 text-xs text-red-700 dark:text-red-400">
+                    {avatarError}
+                  </div>
+                )}
+
+                <div className="flex flex-col items-center justify-center gap-3">
+                  <div 
+                    className="relative w-24 h-24 rounded-full border-2 border-dashed border-[var(--border-strong)] flex items-center justify-center overflow-hidden cursor-pointer hover:border-[var(--accent)] transition-colors bg-[var(--surface-raised)]"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : user?.avatar_base64 ? (
+                      <img src={user.avatar_base64} alt="Current" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center text-[var(--text-tertiary)]">
+                        <Upload className="h-6 w-6 mb-1" />
+                        <span className="text-[10px] font-medium">Escolher foto</span>
+                      </div>
+                    )}
+                  </div>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleAvatarChange} 
+                    accept="image/*" 
+                    className="hidden" 
+                  />
+                  <p className="text-[10px] text-[var(--text-tertiary)] text-center">
+                    JPG, PNG ou GIF. Máx 2MB.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAvatarOpen(false)
+                      setAvatarPreview(null)
+                    }}
+                    className="flex-1 h-8 px-3 rounded-md border border-[var(--border)] hover:bg-[var(--surface-raised)] text-sm font-medium transition-colors duration-150 text-[var(--text-primary)] bg-transparent"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingAvatar || (!avatarPreview && !user?.avatar_base64)}
+                    className="flex-1 h-8 px-3 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-medium transition-colors duration-150 disabled:opacity-60"
+                  >
+                    {savingAvatar ? 'Salvando...' : 'Salvar'}
                   </button>
                 </div>
               </form>

@@ -34,7 +34,7 @@ export default function App() {
 
   useEffect(() => {
     // Fetch global config on mount
-    api.get('/config/personalizacao')
+    api.get('/settings/personalizacao')
       .then(res => setConfig(res.data))
       .catch(err => console.error('Failed to load config:', err))
 

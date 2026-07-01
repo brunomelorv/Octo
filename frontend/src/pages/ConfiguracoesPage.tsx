@@ -52,7 +52,7 @@ export default function ConfiguracoesPage() {
     setIsLoading(true)
     try {
       const [permRes, usersRes] = await Promise.all([
-        api.get('/config/permissions'),
+        api.get('/settings/permissions'),
         api.get('/auth/users')
       ])
       setPermissions(permRes.data)
@@ -69,7 +69,7 @@ export default function ConfiguracoesPage() {
     setIsSaving(true)
     setMessage(null)
     try {
-      await api.put('/config/permissions', permissions)
+      await api.put('/settings/permissions', permissions)
       
       setMessage({ text: 'Configurações salvas com sucesso!', type: 'success' })
       setTimeout(() => setMessage(null), 3000)

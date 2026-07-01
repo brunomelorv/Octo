@@ -319,7 +319,7 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
       if (subcat === 'Recusa Direta / Sem Interesse') motivos.recusaDireta++
       if (subcat === 'Fora do Perfil de Cliente Ideal') motivos.foraPerfil++
       if (subcat === 'Lead Hostil / Irritado') motivos.leadHostil++
-      if (classif === 'Lead Qualificado' || classif === 'Agendou Reunião') {
+      if (classif === 'Lead Qualificado' || classif === 'Agendou Reunião' || classif === 'Retorno Agendado') {
         motivos.qualificadoAgendou++
       }
     }

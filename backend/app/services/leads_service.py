@@ -222,10 +222,25 @@ def classify_call_dynamic(call):
     dur = call.get("duracao_segundos") or 0
     reuniao = call.get("reuniao_agendada")
     
-    # 1. Check if meeting scheduled
+    # 1. Check if meeting or return is scheduled (via reuniao column or resumo text)
+    is_retorno = False
+    is_reuniao = False
+    
     if reuniao and str(reuniao).lower() != 'none' and str(reuniao).strip() != '':
         if "retorno" in str(reuniao).lower() or "retorno agendado" in str(reuniao).lower():
-            return "Retorno Agendado", "Aguardando Retorno do Lead", 7
+            is_retorno = True
+        else:
+            is_reuniao = True
+            
+    if not is_retorno and not is_reuniao:
+        if "retorno agendado para" in resumo or "retorno para" in resumo or "agendado retorno" in resumo:
+            is_retorno = True
+        elif "reunião agendada para" in resumo or "reuniao agendada para" in resumo:
+            is_reuniao = True
+            
+    if is_retorno:
+        return "Retorno Agendado", "Aguardando Retorno do Lead", 7
+    if is_reuniao:
         return "Agendou Reunião", "Qualificado / Agendou reunião", 8
         
     # 2. Check if lead is hot/qualified
@@ -493,7 +508,7 @@ async def get_dashboard_data(user=None) -> dict:
                 motivo_counts["foraPerfil"] += 1
             if subcat == "Lead Hostil / Irritado":
                 motivo_counts["leadHostil"] += 1
-            if classif in ("Lead Qualificado", "Agendou Reunião"):
+            if classif in ("Lead Qualificado", "Agendou Reunião", "Retorno Agendado"):
                 motivo_counts["qualificadoAgendou"] += 1
                 
         leads_raw.append({

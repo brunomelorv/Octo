@@ -6,6 +6,8 @@ export interface CampanhasResponse {
   platform: string
   total_leads: number
   total_chamadas: number
+  total_reunioes: number
+  total_retornos: number
 }
 
 export const campanhasService = {

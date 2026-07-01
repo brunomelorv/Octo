@@ -119,8 +119,29 @@ function classifyCall(call: Call) {
   const tag = (call.tag || '').toLowerCase()
   const dur = call.duracao_segundos || 0
   const reuniao = call.reuniao_agendada
+  let isRetorno = false
+  let isReuniao = false
 
   if (reuniao && String(reuniao).toLowerCase() !== 'none' && String(reuniao).trim() !== '') {
+    if (String(reuniao).toLowerCase().includes('retorno') || String(reuniao).toLowerCase().includes('retorno agendado')) {
+      isRetorno = true
+    } else {
+      isReuniao = true
+    }
+  }
+
+  if (!isRetorno && !isReuniao) {
+    if (resumo.includes('retorno agendado para') || resumo.includes('retorno para') || resumo.includes('agendado retorno')) {
+      isRetorno = true
+    } else if (resumo.includes('reunião agendada para') || resumo.includes('reuniao agendada para')) {
+      isReuniao = true
+    }
+  }
+
+  if (isRetorno) {
+    return { classif: 'Retorno Agendado', subcat: 'Aguardando Retorno do Lead', score: 7 }
+  }
+  if (isReuniao) {
     return { classif: 'Agendou Reunião', subcat: 'Qualificado / Agendou reunião', score: 8 }
   }
   if (resumo.includes('{lead quente}') || tag.includes('lead quente') || resumo.includes('reunião foi agendada')) {
@@ -1052,12 +1073,48 @@ export default function NegociosPage() {
                   className="w-full h-9 px-3 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
                 >
                   <option value="" disabled>Selecione um motivo</option>
-                  <option value="Sem interesse">Sem interesse</option>
-                  <option value="Preço alto / Sem orçamento">Preço alto / Sem orçamento</option>
-                  <option value="Fora do perfil">Fora do perfil / Desqualificado</option>
-                  <option value="Não atende / Sem contato">Não atende / Sem contato</option>
-                  <option value="Decidiu por concorrente">Decidiu por concorrente</option>
-                  <option value="Outro">Outro</option>
+                  <optgroup label="Agendamento e Retorno">
+                    <option value="Agendamento e Retorno">Agendamento e Retorno</option>
+                    <option value="Pediu para Ligar Depois">Pediu para Ligar Depois</option>
+                    <option value="Agendou Reunião">Agendou Reunião</option>
+                    <option value="Aguardando Retorno do Lead">Aguardando Retorno do Lead</option>
+                  </optgroup>
+                  <optgroup label="Interesse Comercial">
+                    <option value="Interesse Comercial">Interesse Comercial</option>
+                    <option value="Interesse Geral no Produto">Interesse Geral no Produto</option>
+                    <option value="Pediu Mais Informações / Apresentação">Pediu Mais Informações / Apresentação</option>
+                    <option value="Necessidade Alinhada">Necessidade Alinhada</option>
+                  </optgroup>
+                  <optgroup label="Sem Contato Efetivo">
+                    <option value="Sem Contato Efetivo">Sem Contato Efetivo</option>
+                    <option value="Caixa Postal / Chamando">Caixa Postal / Chamando</option>
+                    <option value="Ligação Curta / Sem Diálogo">Ligação Curta / Sem Diálogo</option>
+                    <option value="Lead Ocupado / Em Reunião">Lead Ocupado / Em Reunião</option>
+                  </optgroup>
+                  <optgroup label="Fase de Avaliação">
+                    <option value="Fase de Avaliação">Fase de Avaliação</option>
+                    <option value="Avaliando Internamente">Avaliando Internamente</option>
+                  </optgroup>
+                  <optgroup label="Sem Fit Comercial">
+                    <option value="Sem Fit Comercial">Sem Fit Comercial</option>
+                    <option value="Fora do Perfil de Cliente Ideal">Fora do Perfil de Cliente Ideal</option>
+                    <option value="Sem Orçamento / Caro">Sem Orçamento / Caro</option>
+                  </optgroup>
+                  <optgroup label="Sem Interesse">
+                    <option value="Sem Interesse">Sem Interesse</option>
+                    <option value="Recusa Direta / Sem Interesse">Recusa Direta / Sem Interesse</option>
+                    <option value="Lead Hostil / Irritado">Lead Hostil / Irritado</option>
+                  </optgroup>
+                  <optgroup label="Erro de Cadastro">
+                    <option value="Erro de Cadastro">Erro de Cadastro</option>
+                    <option value="Número Errado / Outra Pessoa">Número Errado / Outra Pessoa</option>
+                  </optgroup>
+                  <optgroup label="Outros">
+                    <option value="Fit de Perfil">Fit de Perfil</option>
+                    <option value="Problemas de Comunicação">Problemas de Comunicação</option>
+                    <option value="Falta de Tempo Pediu para Ligar Depois">Falta de Tempo Pediu para Ligar Depois</option>
+                    <option value="Outro">Outro</option>
+                  </optgroup>
                 </select>
               </div>
 

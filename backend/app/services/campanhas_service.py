@@ -2,8 +2,8 @@ from app.services.database import query
 
 async def get_campanhas() -> list[dict]:
     """
-    Retrieves a list of campaigns with the count of total leads and total calls.
-    Performs a LEFT JOIN between leads and chamadas tables.
+    Retrieves a list of campaigns with summary metrics including total leads, total calls,
+    meetings scheduled, and callbacks requested.
     """
     sql = """
     SELECT 
@@ -11,7 +11,9 @@ async def get_campanhas() -> list[dict]:
         l.campaign_name, 
         l.platform,
         COUNT(DISTINCT l.id) as total_leads,
-        COUNT(DISTINCT c.id) as total_chamadas
+        COUNT(DISTINCT c.id) as total_chamadas,
+        COUNT(DISTINCT CASE WHEN LOWER(c.resumo_ligacao) LIKE '%reunião agendada para%' THEN l.id END) as total_reunioes,
+        COUNT(DISTINCT CASE WHEN LOWER(c.resumo_ligacao) LIKE '%retorno agendado para%' THEN l.id END) as total_retornos
     FROM leads l 
     LEFT JOIN chamadas c ON c.telefone_normalizado = l.phone
     GROUP BY l.campaign_id
