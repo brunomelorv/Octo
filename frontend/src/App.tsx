@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/layout/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
+import AgendaPage from './pages/AgendaPage'
 import LeadsPage from './pages/LeadsPage'
 import PerformancePage from './pages/PerformancePage'
 import NegociosPage from './pages/NegociosPage'
@@ -14,6 +15,7 @@ import ImportarLeadsPage from './pages/ImportarLeadsPage'
 import ConfiguracoesPage from './pages/ConfiguracoesPage'
 import PersonalizacaoPage from './pages/PersonalizacaoPage'
 import DistribuicaoLeadsPage from './pages/DistribuicaoLeadsPage'
+import CampanhasPage from './pages/CampanhasPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 import { useConfigStore } from './store/configStore'
@@ -67,7 +69,9 @@ export default function App() {
         }
       >
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/leads" element={<LeadsPage />} />
+        <Route path="/campanhas" element={<CampanhasPage />} />
         <Route path="/performance" element={<PerformancePage />} />
         <Route path="/negocios" element={<NegociosPage />} />
         <Route path="/usuarios" element={<UsuariosPage />} />

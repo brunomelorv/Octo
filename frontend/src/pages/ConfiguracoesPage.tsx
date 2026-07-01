@@ -17,6 +17,7 @@ interface User {
 const AVAILABLE_PAGES = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'leads', label: 'Leads' },
+  { id: 'agenda', label: 'Agenda do Dia' },
   { id: 'performance', label: 'Performance' },
   { id: 'negocios', label: 'Negócios' },
   { id: 'usuarios', label: 'Usuários' },
@@ -24,6 +25,7 @@ const AVAILABLE_PAGES = [
   { id: 'configuracoes', label: 'Configurações' },
   { id: 'personalizacao', label: 'Personalização' },
   { id: 'distribuicao_leads', label: 'Distribuição de Leads' },
+  { id: 'campanhas', label: 'Campanhas' },
 ]
 
 const ROLES = [

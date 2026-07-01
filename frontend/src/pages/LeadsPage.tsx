@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { leadsService } from '../services/leads'
 import { campanhasService } from '../services/campanhas'
 import type { CampanhasResponse } from '../services/campanhas'
+import { usuariosService } from '../services/usuarios'
+import type { Usuario } from '../services/usuarios'
 import type { Lead, LeadWithCalls, Call } from '../types/lead'
+import WhatsAppTemplateSelector from '../components/WhatsAppTemplateSelector'
 import {
   Search,
   Filter,
@@ -18,13 +22,11 @@ import {
   X,
   PhoneCall,
   Smartphone,
-  ExternalLink,
   Target,
   FileText,
   Activity,
   Award,
-  Clock,
-  MessageSquare
+  Clock
 } from 'lucide-react'
 
 // Helper to format date strings
@@ -147,8 +149,12 @@ export default function LeadsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [campaigns, setCampaigns] = useState<CampanhasResponse[]>([])
-  const [selectedCampaign, setSelectedCampaign] = useState('all')
+  const [searchParams] = useSearchParams()
+  const campaignParam = searchParams.get('campaign_id')
+  const [selectedCampaign, setSelectedCampaign] = useState(campaignParam || 'all')
   const [selectedStatus, setSelectedStatus] = useState('all')
+  const [consultants, setConsultants] = useState<Usuario[]>([])
+  const [selectedConsultant, setSelectedConsultant] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
@@ -193,6 +199,14 @@ export default function LeadsPage() {
       .catch((err) => {
         console.error('Error fetching campaigns:', err)
       })
+
+    usuariosService.list()
+      .then((data) => {
+        setConsultants(data.filter(u => u.role === 'consultor') || [])
+      })
+      .catch((err) => {
+        console.error('Error fetching consultants:', err)
+      })
   }, [])
 
   const fetchLeads = () => {
@@ -202,6 +216,7 @@ export default function LeadsPage() {
       page_size: pageSize,
       campanha_id: selectedCampaign !== 'all' ? selectedCampaign : undefined,
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      consultant: selectedConsultant !== 'all' ? selectedConsultant : undefined,
       search: debouncedSearch ? debouncedSearch : undefined
     })
       .then((data) => {
@@ -219,7 +234,7 @@ export default function LeadsPage() {
 
   useEffect(() => {
     fetchLeads()
-  }, [page, pageSize, selectedCampaign, selectedStatus, debouncedSearch])
+  }, [page, pageSize, selectedCampaign, selectedStatus, selectedConsultant, debouncedSearch])
 
   const handleOpenDetails = (phone: string) => {
     setDrawerOpen(true)
@@ -244,12 +259,6 @@ export default function LeadsPage() {
     setSelectedLead(null)
   }
 
-  const getWhatsAppLink = (phone?: string) => {
-    if (!phone) return '#'
-    const cleanPhone = phone.replace(/\D/g, '')
-    const whatsappUrl = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone
-    return `https://wa.me/${whatsappUrl}`
-  }
 
   return (
     <div className="space-y-4 transition-colors duration-150">
@@ -415,6 +424,30 @@ export default function LeadsPage() {
               <Filter className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[var(--text-tertiary)] stroke-[1.5] pointer-events-none" />
             </div>
           </div>
+
+          {/* Consultant Filter */}
+          <div className="space-y-1">
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Consultor</span>
+            <div className="relative">
+              <select
+                value={selectedConsultant}
+                onChange={(e) => {
+                  setSelectedConsultant(e.target.value)
+                  setPage(1)
+                }}
+                className="w-full h-8 pl-3 pr-8 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] appearance-none transition-colors duration-150"
+              >
+                <option value="all">Todos os Consultores</option>
+                <option value="unassigned">Sem Consultor</option>
+                {consultants.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <Filter className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[var(--text-tertiary)] stroke-[1.5] pointer-events-none" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -465,7 +498,8 @@ export default function LeadsPage() {
                   <th className="py-2.5 px-4 font-semibold">Lead</th>
                   <th className="py-2.5 px-4 font-semibold">Telefone</th>
                   <th className="py-2.5 px-4 font-semibold">Origem / Cidade</th>
-                  <th className="py-2.5 px-4 font-semibold">Campanha / Canal</th>
+                  <th className="py-2.5 px-4 font-semibold">Canal</th>
+                  <th className="py-2.5 px-4 font-semibold">Dono</th>
                   <th className="py-2.5 px-4 font-semibold text-center">Status de Contato</th>
                   <th className="py-2.5 px-4 font-semibold">Última Chamada</th>
                   <th className="py-2.5 px-4 font-semibold text-right">Ações</th>
@@ -515,18 +549,18 @@ export default function LeadsPage() {
                         </div>
                       </td>
 
-                      {/* Campaign & Platform */}
+                      {/* Platform / Canal */}
                       <td className="py-3 px-4">
-                        <div className="space-y-0.5">
-                          <span className="text-xs text-[var(--text-primary)] font-medium block truncate max-w-[160px]">
-                            {lead.campaign_name || 'Campanha Direta'}
-                          </span>
-                          <div className="flex items-center gap-1 text-[11px] text-[var(--text-secondary)]">
-                            <span className={`h-1.5 w-1.5 rounded-full ${isInstagram ? 'bg-pink-500' : 'bg-blue-500'}`}></span>
-                            <span>{lead.platform || 'Facebook'}</span>
-                            {isOrganic && <span className="ml-1 text-emerald-600 dark:text-emerald-450 font-medium">(Orgânico)</span>}
-                          </div>
+                        <div className="flex items-center gap-1 text-[12px] text-[var(--text-primary)]">
+                          <span className={`h-2 w-2 rounded-full ${isInstagram ? 'bg-pink-500' : 'bg-blue-500'}`}></span>
+                          <span>{lead.platform || 'Facebook'}</span>
+                          {isOrganic && <span className="ml-1 text-emerald-600 dark:text-emerald-450 font-medium text-[11px]">(Orgânico)</span>}
                         </div>
+                      </td>
+
+                      {/* Dono */}
+                      <td className="py-3 px-4 text-sm font-medium text-[var(--text-primary)]">
+                        {lead.usuario_nome || '-'}
                       </td>
 
                       {/* Contact Status */}
@@ -716,18 +750,11 @@ export default function LeadsPage() {
                       </div>
 
                       {/* WhatsApp Fast Call Action */}
-                      <div className="pt-1">
-                        <a
-                          href={getWhatsAppLink(selectedLead.phone)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center justify-center gap-1.5 w-full h-8 bg-[#22c55e] hover:bg-[#16a34a] text-white font-medium text-xs rounded-md transition-colors duration-150"
-                        >
-                          <MessageSquare className="h-4 w-4 stroke-[1.5]" />
-                          <span>Abrir WhatsApp ({selectedLead.phone})</span>
-                          <ExternalLink className="h-3 w-3 stroke-[1.5]" />
-                        </a>
-                      </div>
+                      <WhatsAppTemplateSelector
+                        phone={selectedLead.phone}
+                        leadName={selectedLead.full_name}
+                        campaignName={selectedLead.campaign_name}
+                      />
                     </div>
 
                     {/* Calling Timeline */}

@@ -111,6 +111,12 @@ async def add_agenda_comment(phone: str, date_str: str, comment: str, user_email
         (phone, date_str, comment, created_at, user_email)
     )
     
+    # Update performance metrics and history by inserting a CRM event into chamadas
+    await query(
+        "INSERT INTO chamadas (nome_contato, telefone_normalizado, data_hora, resumo_ligacao, status_ligacao, anotacoes, source_file) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("Lead", phone, created_at, f"Anotação/Tag registrada no CRM por {user_email}", "Anotação CRM", comment, "CRM_MANUAL")
+    )
+    
     # Return the newly created comment
     rows = await query(
         "SELECT id, comentario, created_at, usuario_email FROM agenda_comments WHERE telefone_normalizado = ? AND data_agendamento = ? ORDER BY id DESC LIMIT 1",
@@ -118,12 +124,22 @@ async def add_agenda_comment(phone: str, date_str: str, comment: str, user_email
     )
     return dict(rows[0]) if rows else None
 
-async def complete_agenda_item(chamada_id: int, user_email: str, phone: str = None, lead_name: str = None, loss_reason: str = None, loss_comment: str = None) -> bool:
+async def complete_agenda_item(chamada_id: int, user_email: str, phone: str = None, lead_name: str = None, loss_reason: str = None, loss_comment: str = None, deal_stage: str = None) -> bool:
     created_at = datetime.now().isoformat()
     await query(
         "INSERT OR IGNORE INTO agenda_completions (chamada_id, completed_at, completed_by) VALUES (?, ?, ?)",
         (chamada_id, created_at, user_email)
     )
+    
+    if deal_stage and phone:
+        # Get lead id to sync with Kanban
+        lead_rows = await query("SELECT id FROM leads WHERE phone = ? LIMIT 1", (phone,))
+        if lead_rows:
+            lead_id = lead_rows[0]["id"]
+            import app.services.negocios_service as negocios_service
+            # Sync the kanban stage just like dragging a card
+            await negocios_service.save_negocio(lead_id, deal_stage, 0.0, user_email, user_email.split('@')[0], loss_reason, loss_comment)
+            
     return True
 
 async def reschedule_agenda_item(phone: str, lead_name: str, new_date_str: str, new_time_str: str, user_email: str) -> bool:

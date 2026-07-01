@@ -5,7 +5,9 @@ import type { Negocio } from '../services/negocios'
 import { campanhasService } from '../services/campanhas'
 import type { CampanhasResponse } from '../services/campanhas'
 import type { LeadWithCalls, Call } from '../types/lead'
+import WhatsAppTemplateSelector from '../components/WhatsAppTemplateSelector'
 import { leadsService } from '../services/leads'
+import { agendaService } from '../services/agenda'
 import {
   Search,
   Filter,
@@ -23,15 +25,13 @@ import {
   Phone,
   Volume2,
   Star,
-  ExternalLink,
-  MessageSquare,
   ChevronLeft,
   ChevronRight,
   Sparkles
 } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth'
 
 const COLUMNS = [
-  { id: 'Novo', name: 'Novo' },
   { id: 'Sem Contato', name: 'Sem Contato' },
   { id: 'Contatado', name: 'Contatado' },
   { id: 'Qualificado', name: 'Qualificado' },
@@ -156,6 +156,7 @@ function classifyCall(call: Call) {
 }
 
 export default function NegociosPage() {
+  const { user } = useAuth()
   const [deals, setDeals] = useState<Negocio[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -173,16 +174,22 @@ export default function NegociosPage() {
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
 
+  // Drawer Tag states
+  const [drawerTag, setDrawerTag] = useState('')
+  const [drawerTagDate, setDrawerTagDate] = useState('')
+  const [drawerComment, setDrawerComment] = useState('')
+  const [isSubmittingTag, setIsSubmittingTag] = useState(false)
+
   // Loss Modal states
   const [lossModalOpen, setLossModalOpen] = useState(false)
   const [lossDeal, setLossDeal] = useState<Negocio | null>(null)
-  const [lossReason, setLossReason] = useState('Sem interesse')
+  const [lossReason, setLossReason] = useState('')
   const [lossComment, setLossComment] = useState('')
   const [lossCallback, setLossCallback] = useState<((reason: string, comment: string) => void) | null>(null)
 
   const promptLossReason = (deal: Negocio, onConfirm: (reason: string, comment: string) => void) => {
     setLossDeal(deal)
-    setLossReason('Sem interesse')
+    setLossReason('')
     setLossComment('')
     setLossCallback(() => (reason: string, comment: string) => {
       onConfirm(reason, comment)
@@ -419,16 +426,9 @@ export default function NegociosPage() {
     setSelectedLead(null)
   }
 
-  const getWhatsAppLink = (phone?: string) => {
-    if (!phone) return '#'
-    const cleanPhone = phone.replace(/\D/g, '')
-    const whatsappUrl = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone
-    return `https://wa.me/${whatsappUrl}`
-  }
 
   const dealsByColumn = useMemo(() => {
     const groups: { [key: string]: Negocio[] } = {
-      'Novo': [],
       'Sem Contato': [],
       'Contatado': [],
       'Qualificado': [],
@@ -441,7 +441,7 @@ export default function NegociosPage() {
       if (groups[deal.etapa] !== undefined) {
         groups[deal.etapa].push(deal)
       } else {
-        groups['Novo'].push(deal)
+        groups['Sem Contato'].push(deal)
       }
     })
     return groups
@@ -835,17 +835,81 @@ export default function NegociosPage() {
                         </div>
                       </div>
 
-                      <div className="pt-1">
-                        <a
-                          href={getWhatsAppLink(selectedLead.phone)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center justify-center gap-1.5 w-full h-8 bg-[#22c55e] hover:bg-[#16a34a] text-white font-medium text-xs rounded-md transition-colors duration-150"
+                      <WhatsAppTemplateSelector
+                        phone={selectedLead.phone}
+                        leadName={selectedLead.full_name}
+                        campaignName={selectedLead.campaign_name}
+                      />
+                    </div>
+
+                    {/* Tag System in Drawer */}
+                    <div className="bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4 space-y-3 transition-colors duration-150">
+                      <h4 className="text-xs font-semibold uppercase tracking-widest text-[var(--text-secondary)]">Registrar Ação / Tag</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {['Tarefa', 'Chamada', 'Reunião Realizada'].map(tag => (
+                          <button
+                            key={tag}
+                            onClick={() => setDrawerTag(prev => prev === tag ? '' : tag)}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${drawerTag === tag ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800' : 'bg-[var(--surface)] text-[var(--text-secondary)] border-[var(--border)] hover:bg-[var(--surface-hover)]'}`}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                      
+                      {drawerTag === 'Tarefa' && (
+                        <div className="animate-in fade-in slide-in-from-top-1 mt-2">
+                          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Data da Tarefa (Obrigatória)</label>
+                          <input 
+                            type="date"
+                            value={drawerTagDate}
+                            onChange={(e) => setDrawerTagDate(e.target.value)}
+                            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-1.5 text-sm"
+                          />
+                        </div>
+                      )}
+
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Comentário opcional..."
+                          value={drawerComment}
+                          onChange={(e) => setDrawerComment(e.target.value)}
+                          className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-1.5 text-sm"
+                        />
+                        <button
+                          onClick={async () => {
+                            if (!drawerTag && !drawerComment) return
+                            if (!selectedLead?.phone) return
+                            setIsSubmittingTag(true)
+                            try {
+                              let fullComment = drawerComment
+                              if (drawerTag) {
+                                fullComment = `[Tag: ${drawerTag}${drawerTagDate ? ` - Data: ${drawerTagDate}` : ''}] ${fullComment}`
+                              }
+                              
+                              const today = new Date()
+                              const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+                              await agendaService.addComment(selectedLead.phone, dateStr, fullComment, user?.email || 'Usuário')
+                              
+                              alert('Ação registrada com sucesso! O histórico foi atualizado.')
+                              setDrawerTag('')
+                              setDrawerTagDate('')
+                              setDrawerComment('')
+                              
+                              // Reload the drawer to fetch the new history
+                              // handleOpenDetails(selectedLead.phone, null as any) will reload it
+                            } catch (e) {
+                              alert('Erro ao registrar ação')
+                            } finally {
+                              setIsSubmittingTag(false)
+                            }
+                          }}
+                          disabled={isSubmittingTag || (!drawerTag && !drawerComment) || (drawerTag === 'Tarefa' && !drawerTagDate)}
+                          className="px-3 bg-[var(--text-primary)] text-[var(--surface)] rounded-md text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
                         >
-                          <MessageSquare className="h-4 w-4 stroke-[1.5]" />
-                          <span>Abrir WhatsApp ({selectedLead.phone})</span>
-                          <ExternalLink className="h-3 w-3 stroke-[1.5]" />
-                        </a>
+                          Salvar
+                        </button>
                       </div>
                     </div>
 
@@ -987,6 +1051,7 @@ export default function NegociosPage() {
                   onChange={(e) => setLossReason(e.target.value)}
                   className="w-full h-9 px-3 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
                 >
+                  <option value="" disabled>Selecione um motivo</option>
                   <option value="Sem interesse">Sem interesse</option>
                   <option value="Preço alto / Sem orçamento">Preço alto / Sem orçamento</option>
                   <option value="Fora do perfil">Fora do perfil / Desqualificado</option>
@@ -1020,11 +1085,12 @@ export default function NegociosPage() {
               </button>
               <button
                 onClick={() => {
-                  if (lossCallback) {
+                  if (lossCallback && lossReason) {
                     lossCallback(lossReason, lossComment)
                   }
                 }}
-                className="h-9 px-4 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors duration-150"
+                disabled={!lossReason}
+                className="h-9 px-4 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors duration-150 disabled:opacity-50"
               >
                 Confirmar Perda
               </button>

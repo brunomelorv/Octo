@@ -70,17 +70,19 @@ async def get_negocios(campaign_id=None, search=None, user=None) -> list[dict]:
             
         # Determine stage (etapa)
         if not item.get("etapa"):
-            status_chamada = item["status_chamada"]
-            if status_chamada == "Agendou Reunião":
+            resumo_lower = (row.get("call_summary") or "").lower()
+            reuniao_field = row.get("reuniao_agendada")
+            if (reuniao_field and str(reuniao_field).lower() != 'none' and str(reuniao_field).strip() != '') or "reunião agendada" in resumo_lower:
                 item["etapa"] = "Reunião Agendada"
-            elif status_chamada == "Lead Qualificado":
+            elif "{lead quente}" in resumo_lower or "retorno agendado" in resumo_lower:
                 item["etapa"] = "Qualificado"
-            elif status_chamada in ("Caixa Postal / Não Atendido",):
-                item["etapa"] = "Sem Contato"
-            elif status_chamada != "Sem Ligação":
-                item["etapa"] = "Contatado"
+            elif row.get("call_phone"):
+                if "{lead desqualificado}" in resumo_lower:
+                    item["etapa"] = "Perdido"
+                else:
+                    item["etapa"] = "Contatado"
             else:
-                item["etapa"] = "Novo"
+                item["etapa"] = "Sem Contato"
                 
         if item.get("valor") is None:
             item["valor"] = 0.0
@@ -112,21 +114,22 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
     else:
         # Determine dynamic previous stage for history accuracy
         phone = lead.get("phone")
-        etapa_anterior = "Novo"
+        etapa_anterior = "Sem Contato"
         if phone:
             call_rows = await query(
                 "SELECT * FROM chamadas WHERE telefone_normalizado = ? ORDER BY data_hora DESC LIMIT 1",
                 (phone,)
             )
             if call_rows:
-                classif, _, _ = leads_service.classify_call_dynamic(dict(call_rows[0]))
-                if classif == "Agendou Reunião":
+                resumo_lower = (call_rows[0].get("resumo_ligacao") or "").lower()
+                reuniao_field = call_rows[0].get("reuniao_agendada")
+                if (reuniao_field and str(reuniao_field).lower() != 'none' and str(reuniao_field).strip() != '') or "reunião agendada" in resumo_lower:
                     etapa_anterior = "Reunião Agendada"
-                elif classif == "Lead Qualificado":
+                elif "{lead quente}" in resumo_lower or "retorno agendado" in resumo_lower:
                     etapa_anterior = "Qualificado"
-                elif classif in ("Caixa Postal / Não Atendido",):
-                    etapa_anterior = "Sem Contato"
-                elif classif != "Sem Ligação":
+                elif "{lead desqualificado}" in resumo_lower:
+                    etapa_anterior = "Perdido"
+                else:
                     etapa_anterior = "Contatado"
                     
         await query(

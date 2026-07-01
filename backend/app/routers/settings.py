@@ -13,10 +13,10 @@ class PermissionsData(BaseModel):
     users: Dict[str, List[str]] = {}
 
 DEFAULT_ROLE_PERMISSIONS = {
-    "master": ["dashboard", "leads", "negocios", "performance", "usuarios", "importar_leads", "configuracoes", "personalizacao", "distribuicao_leads"],
-    "head": ["dashboard", "leads", "negocios", "performance", "usuarios", "importar_leads", "configuracoes", "personalizacao", "distribuicao_leads"],
-    "administrativo": ["dashboard", "leads", "negocios", "usuarios", "importar_leads", "configuracoes", "personalizacao", "distribuicao_leads"],
-    "consultor": ["dashboard", "leads", "negocios", "performance"],
+    "master": ["dashboard", "leads", "negocios", "performance", "usuarios", "importar_leads", "configuracoes", "personalizacao", "distribuicao_leads", "agenda", "campanhas"],
+    "head": ["dashboard", "leads", "negocios", "performance", "usuarios", "importar_leads", "configuracoes", "personalizacao", "distribuicao_leads", "agenda", "campanhas"],
+    "administrativo": ["dashboard", "leads", "negocios", "usuarios", "importar_leads", "configuracoes", "personalizacao", "distribuicao_leads", "agenda", "campanhas"],
+    "consultor": ["dashboard", "leads", "negocios", "performance", "agenda", "campanhas"],
 }
 
 @router.get("/permissions", response_model=PermissionsData)

@@ -18,6 +18,7 @@ class CompleteRequest(BaseModel):
     lead_name: Optional[str] = None
     loss_reason: Optional[str] = None
     loss_comment: Optional[str] = None
+    deal_stage: Optional[str] = None
 
 class RescheduleRequest(BaseModel):
     phone: str
@@ -36,7 +37,10 @@ async def create_agenda_comment(req: CommentRequest):
     return comment
 @router.post("/complete")
 async def complete_agenda(req: CompleteRequest):
-    success = await complete_agenda_item(req.chamada_id, req.user_email, req.phone, req.lead_name, req.loss_reason, req.loss_comment)
+    success = await complete_agenda_item(
+        req.chamada_id, req.user_email, req.phone, req.lead_name, 
+        req.loss_reason, req.loss_comment, req.deal_stage
+    )
     return {"success": success}
 
 @router.post("/reschedule")

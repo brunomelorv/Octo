@@ -5,11 +5,7 @@ export const uploadService = {
     const formData = new FormData()
     files.forEach(file => formData.append('files', file))
     
-    const response = await api.post('/upload/facebook', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
+    const response = await api.post('/upload/facebook', formData)
     return response.data
   },
 
@@ -17,11 +13,7 @@ export const uploadService = {
     const formData = new FormData()
     files.forEach(file => formData.append('files', file))
     
-    const response = await api.post('/upload/pitchyes', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
+    const response = await api.post('/upload/pitchyes', formData)
     return response.data
   },
 

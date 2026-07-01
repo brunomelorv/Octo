@@ -8,6 +8,7 @@ import {
   X,
   LayoutDashboard,
   Users,
+  Calendar,
   BarChart3,
   TrendingUp,
   UserCog,
@@ -15,7 +16,8 @@ import {
   Settings,
   Palette,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Megaphone
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAuthStore } from '../../store/authStore'
@@ -44,6 +46,12 @@ export default function Sidebar() {
       icon: <LayoutDashboard className="h-4 w-4 stroke-[1.5]" />,
     },
     {
+      name: 'Agenda do Dia',
+      path: '/agenda',
+      id: 'agenda',
+      icon: <Calendar className="h-4 w-4 stroke-[1.5]" />,
+    },
+    {
       name: 'Leads',
       path: '/leads',
       id: 'leads',
@@ -60,6 +68,12 @@ export default function Sidebar() {
           id: 'distribuicao_leads',
         },
       ]
+    },
+    {
+      name: 'Campanhas',
+      path: '/campanhas',
+      id: 'campanhas',
+      icon: <Megaphone className="h-4 w-4 stroke-[1.5]" />,
     },
     {
       name: 'Negócios',

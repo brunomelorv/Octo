@@ -2,7 +2,13 @@ import os
 import glob
 import sqlite3
 import re
+import sys
 import pandas as pd
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 def normalize_phone(phone_val):
     if pd.isna(phone_val):
@@ -135,23 +141,23 @@ def consolidate_leads(db_conn):
         platform, full_name, phone, city, email, lead_status, source_file
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
-        created_time = excluded.created_time,
-        ad_id = excluded.ad_id,
-        ad_name = excluded.ad_name,
-        adset_id = excluded.adset_id,
-        adset_name = excluded.adset_name,
-        campaign_id = excluded.campaign_id,
-        campaign_name = excluded.campaign_name,
-        form_id = excluded.form_id,
-        form_name = excluded.form_name,
-        is_organic = excluded.is_organic,
-        platform = excluded.platform,
-        full_name = excluded.full_name,
-        phone = excluded.phone,
-        city = excluded.city,
-        email = excluded.email,
-        lead_status = excluded.lead_status,
-        source_file = excluded.source_file
+        created_time = COALESCE(leads.created_time, excluded.created_time),
+        ad_id = COALESCE(leads.ad_id, excluded.ad_id),
+        ad_name = COALESCE(leads.ad_name, excluded.ad_name),
+        adset_id = COALESCE(leads.adset_id, excluded.adset_id),
+        adset_name = COALESCE(leads.adset_name, excluded.adset_name),
+        campaign_id = COALESCE(leads.campaign_id, excluded.campaign_id),
+        campaign_name = COALESCE(leads.campaign_name, excluded.campaign_name),
+        form_id = COALESCE(leads.form_id, excluded.form_id),
+        form_name = COALESCE(leads.form_name, excluded.form_name),
+        is_organic = COALESCE(leads.is_organic, excluded.is_organic),
+        platform = COALESCE(leads.platform, excluded.platform),
+        full_name = COALESCE(leads.full_name, excluded.full_name),
+        phone = COALESCE(leads.phone, excluded.phone),
+        city = COALESCE(leads.city, excluded.city),
+        email = COALESCE(leads.email, excluded.email),
+        lead_status = COALESCE(leads.lead_status, excluded.lead_status),
+        source_file = COALESCE(leads.source_file, excluded.source_file)
     """
     
     columns = [
@@ -278,16 +284,16 @@ def consolidate_calls(db_conn):
         anotacoes, tag, source_file
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(nome_contato, telefone, data_hora) DO UPDATE SET
-        telefone_normalizado = excluded.telefone_normalizado,
-        duracao_segundos = excluded.duracao_segundos,
-        resumo_ligacao = excluded.resumo_ligacao,
-        status_ligacao = excluded.status_ligacao,
-        link_gravacao = excluded.link_gravacao,
-        reuniao_agendada = excluded.reuniao_agendada,
-        link_reuniao = excluded.link_reuniao,
-        anotacoes = excluded.anotacoes,
-        tag = excluded.tag,
-        source_file = excluded.source_file
+        telefone_normalizado = COALESCE(chamadas.telefone_normalizado, excluded.telefone_normalizado),
+        duracao_segundos = COALESCE(chamadas.duracao_segundos, excluded.duracao_segundos),
+        resumo_ligacao = COALESCE(chamadas.resumo_ligacao, excluded.resumo_ligacao),
+        status_ligacao = COALESCE(chamadas.status_ligacao, excluded.status_ligacao),
+        link_gravacao = COALESCE(chamadas.link_gravacao, excluded.link_gravacao),
+        reuniao_agendada = COALESCE(chamadas.reuniao_agendada, excluded.reuniao_agendada),
+        link_reuniao = COALESCE(chamadas.link_reuniao, excluded.link_reuniao),
+        anotacoes = COALESCE(chamadas.anotacoes, excluded.anotacoes),
+        tag = COALESCE(chamadas.tag, excluded.tag),
+        source_file = COALESCE(chamadas.source_file, excluded.source_file)
     """
     
     columns = [
@@ -496,35 +502,73 @@ def create_views(db_conn):
     db_conn.commit()
     print("Analytical views and indexes created successfully.")
 
+def log_message(level, message):
+    from datetime import datetime
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [{level}] {message}")
+
 def distribute_new_leads(db_conn):
     import json
     from datetime import datetime
     
-    print("\n--- Running Lead Distribution (Round-Robin) ---")
+    log_message("INFO", "Running Lead Distribution (Round-Robin)...")
     cursor = db_conn.cursor()
     
+    # Ensure negócios and negócios_historico tables exist (prevent crashes on fresh installs)
+    try:
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS negocios (
+            lead_id TEXT PRIMARY KEY,
+            etapa TEXT NOT NULL,
+            valor REAL DEFAULT 0.0,
+            updated_at TEXT,
+            usuario_email TEXT,
+            usuario_nome TEXT
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS negocios_historico (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_id TEXT NOT NULL,
+            etapa_anterior TEXT,
+            etapa_nova TEXT NOT NULL,
+            valor REAL DEFAULT 0.0,
+            usuario_email TEXT NOT NULL,
+            usuario_nome TEXT NOT NULL,
+            data_hora TEXT NOT NULL
+        );
+        """)
+        db_conn.commit()
+    except Exception as e:
+        log_message("ERROR", f"Failed to verify/create 'negocios' or 'negocios_historico' tables: {e}")
+        return
+        
     # 1. Fetch setting for distribution
-    cursor.execute("SELECT value FROM settings WHERE key = 'distribuicao'")
-    row = cursor.fetchone()
+    try:
+        cursor.execute("SELECT value FROM settings WHERE key = 'distribuicao'")
+        row = cursor.fetchone()
+    except sqlite3.OperationalError as e:
+        log_message("WARNING", f"Table 'settings' does not exist yet. Skipping lead distribution. (Detail: {e})")
+        return
+        
     if not row:
-        print("No lead distribution settings found. Skipping.")
+        log_message("INFO", "No lead distribution settings found in 'settings' table. Skipping.")
         return
         
     try:
         config = json.loads(row[0])
     except Exception as e:
-        print(f"Error parsing distribution config: {e}")
+        log_message("ERROR", f"Error parsing distribution config JSON: {e}")
         return
         
     auto_distribute = config.get("auto_distribute", False)
     participating_users = config.get("participating_users", [])
     
     if not auto_distribute:
-        print("Round-Robin distribution is disabled in settings. Skipping.")
+        log_message("INFO", "Round-Robin distribution is disabled in settings. Skipping.")
         return
         
     if not participating_users:
-        print("No participating users selected in settings. Skipping.")
+        log_message("WARNING", "No participating users selected in settings. Skipping.")
         return
         
     # 2. Fetch active users' email and names
@@ -536,22 +580,38 @@ def distribute_new_leads(db_conn):
             pass
             
     if not user_ids:
-        print("No valid user IDs found in settings. Skipping.")
+        log_message("WARNING", "No valid user IDs found in settings. Skipping.")
         return
         
     placeholders = ",".join("?" for _ in user_ids)
-    cursor.execute(f"SELECT id, email, name FROM users WHERE id IN ({placeholders}) AND active = 1", tuple(user_ids))
-    db_users = [dict(zip(["id", "email", "name"], r)) for r in cursor.fetchall()]
+    try:
+        cursor.execute(f"SELECT id, email, name, active FROM users WHERE id IN ({placeholders})", tuple(user_ids))
+        all_db_users = [dict(zip(["id", "email", "name", "active"], r)) for r in cursor.fetchall()]
+    except sqlite3.OperationalError as e:
+        log_message("WARNING", f"Table 'users' does not exist yet. Skipping lead distribution. (Detail: {e})")
+        return
+        
+    # Filter active users and log inactive/missing users
+    db_users = [u for u in all_db_users if u["active"] == 1]
     
+    db_user_ids = {u["id"] for u in all_db_users}
+    active_user_ids = {u["id"] for u in db_users}
+    
+    for uid in user_ids:
+        if uid not in db_user_ids:
+            log_message("WARNING", f"Configured user ID {uid} does not exist in 'users' table.")
+        elif uid not in active_user_ids:
+            log_message("WARNING", f"Configured user ID {uid} exists but is marked INACTIVE in the database.")
+            
     if not db_users:
-        print("No active participating users found in the database. Skipping.")
+        log_message("ERROR", "No active participating users found in the database. Skipping lead distribution.")
         return
         
     # Order the users in the round robin to match the order in participating_users setting
     user_order_map = {int(uid): idx for idx, uid in enumerate(participating_users) if str(uid).isdigit()}
     db_users.sort(key=lambda u: user_order_map.get(u["id"], 9999))
     
-    print(f"Active consultants in distribution queue: {[u['name'] for u in db_users]}")
+    log_message("INFO", f"Active consultants in distribution queue (ordered): {[u['name'] for u in db_users]}")
     
     # 3. Find leads that DO NOT exist in negocios
     # Join with the latest call partition to compute stage
@@ -569,17 +629,16 @@ def distribute_new_leads(db_conn):
     new_leads = cursor.fetchall()
     
     if not new_leads:
-        print("No new unassigned leads found. Skipping.")
+        log_message("INFO", "No new unassigned leads found. Distribution complete.")
         return
         
-    print(f"Found {len(new_leads)} new unassigned leads to distribute.")
+    log_message("INFO", f"Found {len(new_leads)} new unassigned leads to distribute.")
     
-    # Helper to classify stage
     def compute_initial_stage(resumo_ligacao, reuniao_agendada, has_call):
         if not has_call:
-            return "Novo/Sem Contato"
+            return "Sem Contato"
         resumo_lower = (resumo_ligacao or "").lower()
-        if "reunião agendada" in resumo_lower:
+        if (reuniao_agendada and str(reuniao_agendada).lower() != 'none' and str(reuniao_agendada).strip() != '') or "reunião agendada" in resumo_lower:
             return "Reunião Agendada"
         elif "{lead quente}" in resumo_lower or "retorno agendado" in resumo_lower:
             return "Qualificado"
@@ -592,19 +651,21 @@ def distribute_new_leads(db_conn):
     num_users = len(db_users)
     
     # To make it even more balanced across imports, we start with the user who has the fewest assigned leads.
+    # We use case-insensitive email keys to ensure correct lookup and mapping.
     cursor.execute("SELECT usuario_email, count(*) as count FROM negocios WHERE usuario_email IS NOT NULL GROUP BY usuario_email")
-    counts_map = {r[0]: r[1] for r in cursor.fetchall()}
+    counts_map = {r[0].lower(): r[1] for r in cursor.fetchall() if r[0]}
     
     min_count = float('inf')
     start_user_idx = 0
     for idx, u in enumerate(db_users):
-        ucount = counts_map.get(u["email"], 0)
+        email_key = u["email"].lower() if u["email"] else ""
+        ucount = counts_map.get(email_key, 0)
         if ucount < min_count:
             min_count = ucount
             start_user_idx = idx
             
     user_idx = start_user_idx
-    print(f"Starting distribution from: {db_users[user_idx]['name']} (currently has {min_count} leads)")
+    log_message("INFO", f"Starting distribution from: {db_users[user_idx]['name']} (email: {db_users[user_idx]['email']}, current count: {counts_map.get(db_users[user_idx]['email'].lower(), 0)})")
     
     insert_negocios_sql = """
         INSERT INTO negocios (lead_id, etapa, valor, updated_at, usuario_email, usuario_nome)
@@ -630,12 +691,17 @@ def distribute_new_leads(db_conn):
             assigned_user["name"]
         ))
         
+        log_message("INFO", f"Lead '{full_name}' ({lead_id}) -> Assigned to: {assigned_user['name']} ({assigned_user['email']}) | Stage: {initial_stage}")
         user_idx = (user_idx + 1) % num_users
         
     if negocios_data:
-        cursor.executemany(insert_negocios_sql, negocios_data)
-        db_conn.commit()
-        print(f"Successfully distributed {len(negocios_data)} leads.")
+        try:
+            cursor.executemany(insert_negocios_sql, negocios_data)
+            db_conn.commit()
+            log_message("INFO", f"Successfully distributed {len(negocios_data)} leads in 'negocios' table.")
+        except Exception as e:
+            log_message("ERROR", f"Error inserting into 'negocios' table: {e}")
+            return
         
         # Insert audit trail for these assignments in negocios_historico
         insert_hist_sql = """
@@ -646,16 +712,19 @@ def distribute_new_leads(db_conn):
         for d in negocios_data:
             hist_data.append((
                 d[0],
-                "Novo/Sem Contato",
+                "Sem Contato",
                 d[1],
                 0.0,
                 d[4],
                 d[5],
                 d[3]
             ))
-        cursor.executemany(insert_hist_sql, hist_data)
-        db_conn.commit()
-        print(f"Created {len(hist_data)} history audit entries for assignments.")
+        try:
+            cursor.executemany(insert_hist_sql, hist_data)
+            db_conn.commit()
+            log_message("INFO", f"Created {len(hist_data)} history audit entries in 'negocios_historico' table.")
+        except Exception as e:
+            log_message("ERROR", f"Error inserting audit entries into 'negocios_historico': {e}")
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))

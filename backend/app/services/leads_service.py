@@ -224,6 +224,8 @@ def classify_call_dynamic(call):
     
     # 1. Check if meeting scheduled
     if reuniao and str(reuniao).lower() != 'none' and str(reuniao).strip() != '':
+        if "retorno" in str(reuniao).lower() or "retorno agendado" in str(reuniao).lower():
+            return "Retorno Agendado", "Aguardando Retorno do Lead", 7
         return "Agendou Reunião", "Qualificado / Agendou reunião", 8
         
     # 2. Check if lead is hot/qualified

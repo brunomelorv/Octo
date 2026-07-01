@@ -16,6 +16,27 @@ async def init_settings_table():
             "INSERT OR IGNORE INTO settings (key, value) VALUES ('permissions', '{}')"
         )
         await db.commit()
+
+        # Migrate existing permissions to include the new 'campanhas' page
+        async with db.execute("SELECT value FROM settings WHERE key = 'permissions'") as cursor:
+            row = await cursor.fetchone()
+            if row and row["value"]:
+                try:
+                    perms = json.loads(row["value"])
+                    roles = perms.get("roles", {})
+                    updated = False
+                    for role, role_perms in roles.items():
+                        if isinstance(role_perms, list) and "campanhas" not in role_perms:
+                            role_perms.append("campanhas")
+                            updated = True
+                    if updated:
+                        await db.execute(
+                            "UPDATE settings SET value = ? WHERE key = 'permissions'",
+                            (json.dumps(perms),)
+                        )
+                        await db.commit()
+                except Exception as e:
+                    print("Error migrating permissions settings:", e)
     finally:
         await db.close()
 

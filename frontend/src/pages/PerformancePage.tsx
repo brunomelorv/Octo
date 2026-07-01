@@ -328,7 +328,6 @@ export default function PerformancePage() {
             className="w-full h-8 px-3 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
           >
             <option value="all">Todas as Etapas</option>
-            <option value="Novo">Novo</option>
             <option value="Sem Contato">Sem Contato</option>
             <option value="Contatado">Contatado</option>
             <option value="Qualificado">Qualificado</option>

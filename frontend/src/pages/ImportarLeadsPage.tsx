@@ -9,9 +9,6 @@ type UploadStatus = 'idle' | 'uploading' | 'success' | 'error'
 export default function ImportarLeadsPage() {
   const { user } = useAuth()
   
-  if (!['master', 'administrativo'].includes(user?.role || '')) {
-    return <Navigate to="/dashboard" replace />
-  }
   const [fbFiles, setFbFiles] = useState<File[]>([])
   const [fbStatus, setFbStatus] = useState<UploadStatus>('idle')
   const [fbMessage, setFbMessage] = useState('')
@@ -22,6 +19,10 @@ export default function ImportarLeadsPage() {
 
   const [buildStatus, setBuildStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [buildMessage, setBuildMessage] = useState('')
+
+  if (!['master', 'administrativo', 'head'].includes(user?.role || '')) {
+    return <Navigate to="/dashboard" replace />
+  }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()

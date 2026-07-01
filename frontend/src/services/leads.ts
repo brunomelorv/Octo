@@ -15,6 +15,7 @@ export const leadsService = {
     status?: string
     campanha_id?: string
     search?: string
+    consultant?: string
     page?: number
     page_size?: number
   }) {

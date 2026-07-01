@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Calendar, MessageSquare, ExternalLink, Send, ChevronLeft, ChevronRight, Phone, CheckCircle2, X, ChevronDown, ChevronUp, Clock } from 'lucide-react'
+import { Calendar, MessageSquare, Send, ChevronLeft, ChevronRight, Phone, CheckCircle2, X, ChevronDown, ChevronUp, Clock } from 'lucide-react'
 import { leadsService } from '../services/leads'
 import { agendaService } from '../services/agenda'
+import { negociosService } from '../services/negocios'
 import type { AgendaItem } from '../services/agenda'
+import WhatsAppTemplateSelector from '../components/WhatsAppTemplateSelector'
 
 export default function AgendaPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -11,6 +13,7 @@ export default function AgendaPage() {
   const [error, setError] = useState<string | null>(null)
   
   const [commentInputs, setCommentInputs] = useState<{ [key: string]: string }>({})
+  const [tagInputs, setTagInputs] = useState<{ [key: string]: { tag: string, date: string } }>({})
   const [submittingComment, setSubmittingComment] = useState<string | null>(null)
   const [rescheduleData, setRescheduleData] = useState<{ [key: string]: { date: string, time: string } }>({})
   
@@ -22,6 +25,7 @@ export default function AgendaPage() {
 
   // Inline History state
   const [expandedCards, setExpandedCards] = useState<string[]>([])
+  const [activeContactPhones, setActiveContactPhones] = useState<string[]>([])
   const [historyData, setHistoryData] = useState<Record<string, any>>({})
   const [historyLoading, setHistoryLoading] = useState<Record<string, boolean>>({})
 
@@ -41,7 +45,7 @@ export default function AgendaPage() {
     'Pediu para ligar depois / Sumiu'
   ]
 
-  const dateStr = currentDate.toISOString().split('T')[0] // YYYY-MM-DD
+  const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`
   const user = JSON.parse(localStorage.getItem('user') || '{}')
 
   useEffect(() => {
@@ -68,19 +72,26 @@ export default function AgendaPage() {
     setCurrentDate(newDate)
   }
 
-  const getWhatsAppLink = (phone: string) => {
-    const cleanPhone = phone.replace(/\D/g, '')
-    const whatsappUrl = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone
-    return `https://wa.me/${whatsappUrl}`
+  const toggleContact = (phone: string) => {
+    setActiveContactPhones(prev =>
+      prev.includes(phone) ? prev.filter(p => p !== phone) : [...prev, phone]
+    )
   }
+
 
   const handleAddComment = async (phone: string) => {
     const comment = commentInputs[phone]
-    if (!comment?.trim()) return
+    const tagData = tagInputs[phone]
+    if (!comment?.trim() && !tagData?.tag) return
 
     setSubmittingComment(phone)
     try {
-      const newComment = await agendaService.addComment(phone, dateStr, comment, user.email || 'Usuário')
+      let fullComment = comment || ''
+      if (tagData?.tag) {
+        fullComment = `[Tag: ${tagData.tag}${tagData.date ? ` - Data: ${tagData.date}` : ''}] ${fullComment}`
+      }
+
+      const newComment = await agendaService.addComment(phone, dateStr, fullComment, user.email || 'Usuário')
       
       setItems(prev => prev.map(item => {
         if (item.phone === phone) {
@@ -93,9 +104,10 @@ export default function AgendaPage() {
       }))
       
       setCommentInputs(prev => ({ ...prev, [phone]: '' }))
+      setTagInputs(prev => ({ ...prev, [phone]: { tag: '', date: '' } }))
     } catch (err) {
       console.error(err)
-      alert('Erro ao salvar comentário')
+      alert('Erro ao salvar comentário e tag')
     } finally {
       setSubmittingComment(null)
     }
@@ -136,15 +148,7 @@ export default function AgendaPage() {
           payload.loss_comment = lossComment
         }
 
-        const response = await fetch(`/api/negocios/${completingItem.lead_id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify(payload)
-        })
-        if (!response.ok) throw new Error('Erro ao atualizar funil')
+        await negociosService.updateNegocio(completingItem.lead_id, payload)
       }
 
       if (selectedStage === 'Reunião Agendada') {
@@ -154,7 +158,15 @@ export default function AgendaPage() {
         }
       }
 
-      await agendaService.completeItem(completingItem.chamada_id, user.email || 'Usuário', completingItem.phone, completingItem.lead_name, selectedStage === 'Perdido' ? lossReason : undefined, selectedStage === 'Perdido' ? lossComment : undefined)
+      await agendaService.completeItem(
+        completingItem.chamada_id, 
+        user.email || 'Usuário', 
+        completingItem.phone, 
+        completingItem.lead_name, 
+        selectedStage === 'Perdido' ? lossReason : undefined, 
+        selectedStage === 'Perdido' ? lossComment : undefined,
+        selectedStage
+      )
       
       setItems(prev => prev.map(i => i.chamada_id === completingItem.chamada_id ? { ...i, is_completed: true, deal_stage: selectedStage } : i))
       setCompletingItem(null)
@@ -277,15 +289,13 @@ export default function AgendaPage() {
                 </div>
 
                 <div className="pt-2 flex flex-wrap gap-2 items-center">
-                  <a 
-                    href={getWhatsAppLink(item.phone)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button 
+                    onClick={() => toggleContact(item.phone)}
                     className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors shadow-sm"
                   >
-                    <ExternalLink className="h-4 w-4" />
-                    Contatar
-                  </a>
+                    <MessageSquare className="h-4 w-4" />
+                    {activeContactPhones.includes(item.phone) ? 'Fechar Painel' : 'Contatar'}
+                  </button>
 
                   <button
                     onClick={() => toggleHistory(item.phone)}
@@ -315,6 +325,15 @@ export default function AgendaPage() {
                     </button>
                   )}
                 </div>
+
+                {activeContactPhones.includes(item.phone) && (
+                  <WhatsAppTemplateSelector
+                    phone={item.phone}
+                    leadName={item.lead_name}
+                    eventTime={item.time}
+                    eventType={item.event_type}
+                  />
+                )}
 
                 {/* Complete Inline Form */}
                 {completingItem?.chamada_id === item.chamada_id && (
@@ -442,11 +461,38 @@ export default function AgendaPage() {
                   />
                   <button 
                     onClick={() => handleAddComment(item.phone)}
-                    disabled={submittingComment === item.phone || !commentInputs[item.phone]?.trim()}
+                    disabled={submittingComment === item.phone || (!commentInputs[item.phone]?.trim() && !tagInputs[item.phone]?.tag) || (tagInputs[item.phone]?.tag === 'Tarefa' && !tagInputs[item.phone]?.date)}
                     className="bg-[var(--text-primary)] text-[var(--surface)] p-2 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors"
                   >
                     <Send className="h-4 w-4" />
                   </button>
+                </div>
+                
+                {/* Tag System */}
+                <div className="bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-3 mb-4 space-y-3">
+                  <h5 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Registrar Ação / Tag</h5>
+                  <div className="flex flex-wrap gap-2">
+                    {['Tarefa', 'Chamada', 'Reunião Realizada'].map(tag => (
+                      <button
+                        key={tag}
+                        onClick={() => setTagInputs(prev => ({ ...prev, [item.phone]: { ...prev[item.phone], tag: prev[item.phone]?.tag === tag ? '' : tag } }))}
+                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${tagInputs[item.phone]?.tag === tag ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800' : 'bg-[var(--surface)] text-[var(--text-secondary)] border-[var(--border)] hover:bg-[var(--surface-hover)]'}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                  {tagInputs[item.phone]?.tag === 'Tarefa' && (
+                    <div className="animate-in fade-in slide-in-from-top-1 mt-2">
+                      <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Data da Tarefa (Obrigatória)</label>
+                      <input 
+                        type="date"
+                        value={tagInputs[item.phone]?.date || ''}
+                        onChange={(e) => setTagInputs(prev => ({ ...prev, [item.phone]: { ...prev[item.phone], date: e.target.value } }))}
+                        className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-1.5 text-sm"
+                      />
+                    </div>
+                  )}
                 </div>
                 
                 {/* Comments Section */}
