@@ -5,9 +5,26 @@ from typing import List
 
 router = APIRouter()
 
-FACEBOOK_LEADS_DIR = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Projetos\Marketing e Pitch\Marketing\leads_facebook"
-PITCHYES_CALLS_DIR = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Projetos\Marketing e Pitch\analise PitchYEs\chamadas_pitchyes"
-SCRIPT_PATH = r"C:\Users\BrunoPereiradeMeloAr\Desktop\lead-analytics\Database\build_database.py"
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Base project directory (leads-analytics root)
+BASE_DIR = Path(__file__).resolve().parents[3]
+
+FACEBOOK_LEADS_DIR = os.getenv(
+    "FACEBOOK_LEADS_DIR",
+    str(BASE_DIR / "Database" / "leads_facebook")
+)
+PITCHYES_CALLS_DIR = os.getenv(
+    "PITCHYES_CALLS_DIR",
+    str(BASE_DIR / "Database" / "chamadas_pitchyes")
+)
+SCRIPT_PATH = os.getenv(
+    "SCRIPT_PATH",
+    str(BASE_DIR / "Database" / "build_database.py")
+)
 
 @router.post("/facebook")
 async def upload_facebook_leads(files: List[UploadFile] = File(...)):

@@ -70,7 +70,6 @@ export interface AggregatedDashboardData {
     semLigacao: number
     caixaPostal: number
     ligacaoCurta: number
-    semContatoEfetivo: number
     pediuLigarDepois: number
     avaliandoInternamente: number
     aguardandoRetorno: number
@@ -176,7 +175,6 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
     semLigacao: 0,
     caixaPostal: 0,
     ligacaoCurta: 0,
-    semContatoEfetivo: 0,
     pediuLigarDepois: 0,
     avaliandoInternamente: 0,
     aguardandoRetorno: 0,
@@ -292,7 +290,7 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
     } else {
       if (classif === 'Caixa Postal / Não Atendido') funnel.caixaPostal++
       if (subcat === 'Ligação Curta / Sem Diálogo') funnel.ligacaoCurta++
-      if (classif === 'Sem Contato Efetivo') funnel.semContatoEfetivo++
+      if (classif === 'Sem Ligação') funnel.semLigacao++
       if (subcat === 'Pediu para Ligar Depois') funnel.pediuLigarDepois++
       if (subcat === 'Avaliando Internamente') funnel.avaliandoInternamente++
       if (subcat === 'Aguardando Retorno do Lead') funnel.aguardandoRetorno++

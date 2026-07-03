@@ -61,7 +61,7 @@ async def get_agenda(date_str: str) -> list[dict]:
             event_type = "Reunião"
             
         match = re.search(
-            rf"(Retorno|Reunião)\s+agendad[oa]\s+para:\s+{target_date_formatted}(?:\s+(\d{{1,2}}:\d{{2}}\s*(?:AM|PM|am|pm)?))?",
+            rf"(Retorno|Reunião|Tarefa|Chamada)\s+agendad[oa]\s+para:\s+{target_date_formatted}(?:\s+(\d{{1,2}}:\d{{2}}\s*(?:AM|PM|am|pm)?))?",
             resumo,
             re.IGNORECASE
         )
@@ -69,6 +69,10 @@ async def get_agenda(date_str: str) -> list[dict]:
             matched_type = match.group(1).strip()
             if matched_type.lower() == "reunião":
                 event_type = "Reunião"
+            elif matched_type.lower() == "tarefa":
+                event_type = "Tarefa"
+            elif matched_type.lower() == "chamada":
+                event_type = "Chamada"
             else:
                 event_type = "Retorno"
                 
@@ -121,6 +125,54 @@ async def add_agenda_comment(phone: str, date_str: str, comment: str, user_email
         ("Lead", phone, created_at, f"Anotação/Tag registrada no CRM por {user_email}", "Anotação CRM", comment, "CRM_MANUAL")
     )
     
+    # Parse tag, date and time from comment to create a future schedule event in chamadas
+    # Format from frontend: [Tag: TagName - Data: YYYY-MM-DD - Horário: HH:MM] Comment
+    tag_name, date_val, time_val = None, None, None
+    comment_clean = comment.strip()
+    if comment_clean.startswith("[") and "]" in comment_clean:
+        header = comment_clean[1:comment_clean.index("]")]
+        parts = [p.strip() for p in header.split(" - ")]
+        for part in parts:
+            if part.lower().startswith("tag:"):
+                tag_name = part[4:].strip()
+            elif part.lower().startswith("data:"):
+                date_val = part[5:].strip()
+            elif part.lower().startswith("horário:") or part.lower().startswith("horario:"):
+                time_val = part[8:].strip()
+                
+    if tag_name in ("Tarefa", "Chamada") and date_val:
+            # Get lead name
+            lead_rows = await query("SELECT full_name FROM leads WHERE phone = ? LIMIT 1", (phone,))
+            lead_name = lead_rows[0]["full_name"] if lead_rows else "Lead"
+            
+            # Format date from YYYY-MM-DD to DD/MM/YY
+            try:
+                dt = datetime.strptime(date_val, "%Y-%m-%d")
+                formatted_date = dt.strftime("%d/%m/%y")
+            except Exception:
+                formatted_date = date_val
+                
+            time_str = time_val if time_val else "00:00"
+            resumo = f"{tag_name} agendada para: {formatted_date} {time_str}"
+            
+            # Insert the future schedule record in chamadas
+            await query(
+                "INSERT INTO chamadas (nome_contato, telefone_normalizado, data_hora, resumo_ligacao, status_ligacao, anotacoes, source_file) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (lead_name, phone, created_at, resumo, f"{tag_name} Agendada", f"Agendamento automático via tag por {user_email}", "CRM_MANUAL")
+            )
+            
+            # Track this action in negocios_historico too so it shows up in Performance!
+            lead_id_rows = await query("SELECT id FROM leads WHERE phone = ? LIMIT 1", (phone,))
+            if lead_id_rows:
+                lead_id = lead_id_rows[0]["id"]
+                negocios_rows = await query("SELECT etapa FROM negocios WHERE lead_id = ? LIMIT 1", (lead_id,))
+                current_stage = negocios_rows[0]["etapa"] if negocios_rows else "Sem Contato"
+                
+                await query(
+                    "INSERT INTO negocios_historico (lead_id, etapa_anterior, etapa_nova, valor, usuario_email, usuario_nome, data_hora) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (lead_id, current_stage, f"Tag: {tag_name}", 0.0, user_email, user_email.split('@')[0], created_at)
+                )
+
     # Return the newly created comment
     rows = await query(
         "SELECT id, comentario, created_at, usuario_email FROM agenda_comments WHERE telefone_normalizado = ? AND data_agendamento = ? ORDER BY id DESC LIMIT 1",
@@ -160,7 +212,7 @@ async def reschedule_agenda_item(phone: str, lead_name: str, new_date_str: str, 
     resumo = f"Agendamento manual pelo consultor. Retorno agendado para: {formatted_date} {new_time_str}"
     
     await query(
-        "INSERT INTO chamadas (nome_contato, telefone_normalizado, data_hora, resumo_ligacao, status_ligacao, source_file) VALUES (?, ?, ?, ?, ?, ?)",
-        (lead_name, phone, created_at, resumo, "Reagendamento CRM", "CRM_MANUAL")
+        "INSERT INTO chamadas (nome_contato, telefone_normalizado, data_hora, resumo_ligacao, status_ligacao, anotacoes, source_file) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (lead_name, phone, created_at, resumo, "Reagendamento CRM", user_email, "CRM_MANUAL")
     )
     return True

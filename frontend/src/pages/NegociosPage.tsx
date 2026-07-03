@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { DragEvent, MouseEvent } from 'react'
 import { negociosService } from '../services/negocios'
 import type { Negocio } from '../services/negocios'
@@ -100,7 +101,7 @@ const getStatusBadgeStyle = (status: string) => {
       return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/30'
     case 'Lead Qualificado':
       return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border border-slate-350 dark:border-slate-700'
-    case 'Sem Contato Efetivo':
+    case 'Sem Ligação':
       return 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/30'
     case 'Caixa Postal / Não Atendido':
       return 'bg-slate-100 text-slate-650 dark:bg-slate-800/40 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50'
@@ -155,10 +156,10 @@ function classifyCall(call: Call) {
     return { classif: 'Caixa Postal / Não Atendido', subcat: 'Ligação Curta / Sem Diálogo', score: 2 }
   }
   if (resumo.includes('ligar depois') || resumo.includes('retornar mais tarde') || resumo.includes('ligar mais tarde')) {
-    return { classif: 'Sem Contato Efetivo', subcat: 'Pediu para Ligar Depois', score: 4 }
+    return { classif: 'Sem Ligação', subcat: 'Pediu para Ligar Depois', score: 4 }
   }
   if (resumo.includes('avaliando internamente') || resumo.includes('avaliar com o sócio')) {
-    return { classif: 'Sem Contato Efetivo', subcat: 'Avaliando Internamente', score: 5 }
+    return { classif: 'Sem Ligação', subcat: 'Avaliando Internamente', score: 5 }
   }
   if (resumo.includes('desqualificado') || resumo.includes('{lead desqualificado}') || resumo.includes('fora do perfil')) {
     return { classif: 'Lead Desqualificado', subcat: 'Fora do Perfil de Cliente Ideal', score: 1 }
@@ -172,13 +173,14 @@ function classifyCall(call: Call) {
   if (dur >= 30) {
     return { classif: 'Lead Qualificado', subcat: 'Qualificado / Agendou reunião', score: 6 }
   } else if (dur > 0) {
-    return { classif: 'Sem Contato Efetivo', subcat: 'Avaliando Internamente', score: 4 }
+    return { classif: 'Sem Ligação', subcat: 'Avaliando Internamente', score: 4 }
   }
   return { classif: 'Caixa Postal / Não Atendido', subcat: 'Caixa Postal / Não Atendido', score: 2 }
 }
 
 export default function NegociosPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [deals, setDeals] = useState<Negocio[]>([])
   const [availableTags, setAvailableTags] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -202,6 +204,7 @@ export default function NegociosPage() {
   // Drawer Tag states
   const [drawerTag, setDrawerTag] = useState('')
   const [drawerTagDate, setDrawerTagDate] = useState('')
+  const [drawerTagTime, setDrawerTagTime] = useState('')
   const [drawerComment, setDrawerComment] = useState('')
   const [isSubmittingTag, setIsSubmittingTag] = useState(false)
 
@@ -973,7 +976,11 @@ export default function NegociosPage() {
                         {['Tarefa', 'Chamada', 'Reunião Realizada'].map(tag => (
                           <button
                             key={tag}
-                            onClick={() => setDrawerTag(prev => prev === tag ? '' : tag)}
+                            onClick={() => {
+                              setDrawerTag(prev => prev === tag ? '' : tag)
+                              setDrawerTagDate('')
+                              setDrawerTagTime('')
+                            }}
                             className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${drawerTag === tag ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800' : 'bg-[var(--surface)] text-[var(--text-secondary)] border-[var(--border)] hover:bg-[var(--surface-hover)]'}`}
                           >
                             {tag}
@@ -981,15 +988,30 @@ export default function NegociosPage() {
                         ))}
                       </div>
                       
-                      {drawerTag === 'Tarefa' && (
-                        <div className="animate-in fade-in slide-in-from-top-1 mt-2">
-                          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Data da Tarefa (Obrigatória)</label>
-                          <input 
-                            type="date"
-                            value={drawerTagDate}
-                            onChange={(e) => setDrawerTagDate(e.target.value)}
-                            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-1.5 text-sm"
-                          />
+                      {(drawerTag === 'Tarefa' || drawerTag === 'Chamada') && (
+                        <div className="animate-in fade-in slide-in-from-top-1 mt-2 space-y-2">
+                          <div>
+                            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                              Data da {drawerTag} {drawerTag === 'Tarefa' ? '(Obrigatória)' : '(Opcional)'}
+                            </label>
+                            <input 
+                              type="date"
+                              value={drawerTagDate}
+                              onChange={(e) => setDrawerTagDate(e.target.value)}
+                              className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-1.5 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                              Horário da {drawerTag} {drawerTagDate ? '(Obrigatório)' : '(Opcional)'}
+                            </label>
+                            <input 
+                              type="time"
+                              value={drawerTagTime}
+                              onChange={(e) => setDrawerTagTime(e.target.value)}
+                              className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-1.5 text-sm"
+                            />
+                          </div>
                         </div>
                       )}
 
@@ -1009,27 +1031,39 @@ export default function NegociosPage() {
                             try {
                               let fullComment = drawerComment
                               if (drawerTag) {
-                                fullComment = `[Tag: ${drawerTag}${drawerTagDate ? ` - Data: ${drawerTagDate}` : ''}] ${fullComment}`
+                                fullComment = `[Tag: ${drawerTag}${drawerTagDate ? ` - Data: ${drawerTagDate}` : ''}${drawerTagTime ? ` - Horário: ${drawerTagTime}` : ''}] ${fullComment}`
                               }
                               
                               const today = new Date()
                               const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
                               await agendaService.addComment(selectedLead.phone, dateStr, fullComment, user?.email || 'Usuário')
                               
-                              alert('Ação registrada com sucesso! O histórico foi atualizado.')
+                              alert('Ação registrada com sucesso!')
+                              
+                              const targetDate = drawerTagDate
                               setDrawerTag('')
                               setDrawerTagDate('')
+                              setDrawerTagTime('')
                               setDrawerComment('')
                               
-                              // Reload the drawer to fetch the new history
-                              // handleOpenDetails(selectedLead.phone, null as any) will reload it
+                              if ((drawerTag === 'Tarefa' || drawerTag === 'Chamada') && targetDate) {
+                                setDrawerOpen(false)
+                                navigate(`/agenda?date=${targetDate}`)
+                              }
                             } catch (e) {
                               alert('Erro ao registrar ação')
                             } finally {
                               setIsSubmittingTag(false)
                             }
                           }}
-                          disabled={isSubmittingTag || (!drawerTag && !drawerComment) || (drawerTag === 'Tarefa' && !drawerTagDate)}
+                          disabled={
+                            !!(
+                              isSubmittingTag ||
+                              (!drawerTag && !drawerComment) ||
+                              (drawerTag === 'Tarefa' && (!drawerTagDate || !drawerTagTime)) ||
+                              (drawerTag === 'Chamada' && ((drawerTagDate && !drawerTagTime) || (!drawerTagDate && drawerTagTime)))
+                            )
+                          }
                           className="px-3 bg-[var(--text-primary)] text-[var(--surface)] rounded-md text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
                         >
                           Salvar

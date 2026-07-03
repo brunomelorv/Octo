@@ -655,3 +655,75 @@ async def get_dashboard_data(user=None) -> dict:
         "allCalls": calls_raw
     }
 
+async def get_consultants_performance() -> list[dict]:
+    """
+    Returns performance metrics per consultant.
+    """
+    # 1. Fetch user names
+    users_rows = await query("SELECT email, name FROM users")
+    user_names = {row["email"]: row["name"] for row in users_rows}
+
+    # 2. Get distinct users who have leads in negocios
+    negocios_users = await query("SELECT DISTINCT usuario_email, usuario_nome FROM negocios WHERE usuario_email IS NOT NULL AND usuario_email != ''")
+    
+    # Merge to get all relevant consultant emails
+    consultant_emails = set(user_names.keys())
+    for nu in negocios_users:
+        consultant_emails.add(nu["usuario_email"])
+
+    # 3. Fetch counts of comments/tags per user from agenda_comments
+    comments_counts = await query(
+        "SELECT usuario_email, COUNT(*) as count FROM agenda_comments GROUP BY usuario_email"
+    )
+    comments_map = {row["usuario_email"]: row["count"] for row in comments_counts}
+
+    # 4. Fetch completions count per user
+    completions_counts = await query(
+        "SELECT completed_by, COUNT(*) as count FROM agenda_completions GROUP BY completed_by"
+    )
+    completions_map = {row["completed_by"]: row["count"] for row in completions_counts}
+
+    # 5. Fetch reschedules count per user (where stored in anotacoes column)
+    reschedules_counts = await query(
+        "SELECT anotacoes as usuario_email, COUNT(*) as count FROM chamadas WHERE status_ligacao = 'Reagendamento CRM' GROUP BY anotacoes"
+    )
+    reschedules_map = {row["usuario_email"]: row["count"] for row in reschedules_counts}
+
+    # 6. Fetch total leads and agendados from negocios
+    leads_counts = await query(
+        """
+        SELECT 
+            usuario_email, 
+            COUNT(*) as total, 
+            SUM(CASE WHEN etapa = 'Reunião Agendada' THEN 1 ELSE 0 END) as agendados 
+        FROM negocios 
+        WHERE usuario_email IS NOT NULL AND usuario_email != '' 
+        GROUP BY usuario_email
+        """
+    )
+    leads_map = {row["usuario_email"]: (row["total"], row["agendados"] or 0) for row in leads_counts}
+
+    results = []
+    for email in consultant_emails:
+        name = user_names.get(email, email.split('@')[0])
+        total, agendados = leads_map.get(email, (0, 0))
+        
+        # Calculate follow_up actions
+        follow_up = comments_map.get(email, 0) + completions_map.get(email, 0) + reschedules_map.get(email, 0)
+        
+        # Only show user if they have some activity or leads assigned
+        if total > 0 or follow_up > 0:
+            conversion_rate = (agendados / total * 100.0) if total > 0 else 0.0
+            results.append({
+                "consultant": name,
+                "email": email,
+                "total_leads": total,
+                "leads_agendados": agendados,
+                "leads_follow_up": follow_up,
+                "conversion_rate": round(conversion_rate, 2)
+            })
+
+    # Sort by leads agendados descending to match front-end sorting or keep consistent
+    results.sort(key=lambda x: x["leads_agendados"], reverse=True)
+    return results
+

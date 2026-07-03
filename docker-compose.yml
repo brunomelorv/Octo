@@ -5,18 +5,23 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     env_file:
       - .env
+    environment:
+      - FACEBOOK_LEADS_DIR=/app/Database/leads_facebook
+      - PITCHYES_CALLS_DIR=/app/Database/chamadas_pitchyes
+      - SCRIPT_PATH=/app/Database/build_database.py
     volumes:
-      - ./backend:/app
       - ./Database:/app/Database
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
-    image: nginx:alpine
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:80"
-    volumes:
-      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+

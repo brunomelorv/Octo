@@ -16,7 +16,7 @@ import {
   Award,
   Target,
   Play,
-  Clock,
+  Clock
 } from 'lucide-react'
 import {
   Chart as ChartJS,
@@ -24,12 +24,13 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   Tooltip,
   Legend,
   Filler,
 } from 'chart.js'
-import { Line } from 'react-chartjs-2'
+import { Line, Bar } from 'react-chartjs-2'
 
 // Register ChartJS plugins
 ChartJS.register(
@@ -37,6 +38,7 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   Tooltip,
   Legend,
@@ -247,6 +249,32 @@ export default function DashboardPage() {
   }, [dashboardData])
 
   // Chart setup
+  const isDark = document.documentElement.classList.contains('dark')
+
+  const campaignsChartData = useMemo(() => {
+    const campaigns = Object.entries(dashboardData.leadsPorCampanha)
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 10) // Top 10 campaigns
+    
+    return {
+      labels: campaigns.map(c => c[0].length > 20 ? c[0].substring(0, 20) + '...' : c[0]),
+      datasets: [
+        {
+          label: 'Leads',
+          data: campaigns.map(c => c[1].total),
+          backgroundColor: isDark ? 'rgba(59, 130, 246, 0.8)' : 'rgba(59, 130, 246, 0.7)',
+          borderRadius: 4,
+        },
+        {
+          label: 'Agendados',
+          data: campaigns.map(c => c[1].agendouReuniao),
+          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.8)' : 'rgba(16, 185, 129, 0.7)',
+          borderRadius: 4,
+        }
+      ]
+    }
+  }, [dashboardData.leadsPorCampanha, isDark])
+
   const leadsVsCallsChartData = useMemo(() => {
     const allDates = new Set<string>()
     Object.keys(dashboardData.leadsPorDia).forEach((d) => allDates.add(d))
@@ -262,9 +290,6 @@ export default function DashboardPage() {
 
     const leadsSeries = sortedDates.map((d) => dashboardData.leadsPorDia[d] || 0)
     const callsSeries = sortedDates.map((d) => dashboardData.ligacoesPorDia[d] || 0)
-
-    // Check if dark mode is active to customize chart colors
-    const isDark = document.documentElement.classList.contains('dark')
 
     return {
       labels,
@@ -430,7 +455,7 @@ export default function DashboardPage() {
       </div>
 
       {/* TAB NAVIGATION */}
-      <div className="flex border-b border-[var(--border)]">
+      <div className="flex border-b border-[var(--border)] overflow-x-auto whitespace-nowrap">
         {[
           { id: 'geral', label: 'Análise Marketing Geral', icon: <BarChart3 className="w-4 h-4 stroke-[1.5]" /> },
           { id: 'nao-atenderam', label: 'Análise PitchYES', icon: <PhoneOff className="w-4 h-4 stroke-[1.5]" /> },
@@ -468,7 +493,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">
-              <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Taxa de contato</p>
+              <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Taxa de ligação</p>
               <div className="flex items-baseline gap-1.5 mt-1.5">
                 <span className="text-2xl font-semibold text-[var(--text-primary)]">{contactRate}%</span>
                 <span className="text-xs text-[var(--text-secondary)]">({dashboardData.contatos} contatados)</span>
@@ -515,7 +540,7 @@ export default function DashboardPage() {
                   { label: 'Sem Ligação Efetiva (Perda inicial)', val: dashboardData.funnel.semLigacao, color: 'bg-slate-300' },
                   { label: 'Caixa Postal / Não Atendido', val: dashboardData.funnel.caixaPostal, color: 'bg-amber-300' },
                   { label: 'Ligação Curta / Sem Diálogo', val: dashboardData.funnel.ligacaoCurta, color: 'bg-red-300' },
-                  { label: 'Sem Contato Efetivo', val: dashboardData.funnel.semContatoEfetivo, color: 'bg-amber-400' },
+                  { label: 'Sem Ligação', val: dashboardData.funnel.semLigacao, color: 'bg-amber-400' },
                   { label: 'Pediu para Ligar Depois', val: dashboardData.funnel.pediuLigarDepois, color: 'bg-yellow-450' },
                   { label: 'Avaliando Internamente', val: dashboardData.funnel.avaliandoInternamente, color: 'bg-blue-300' },
                   { label: 'Aguardando Retorno do Lead', val: dashboardData.funnel.aguardandoRetorno, color: 'bg-indigo-300' },
@@ -584,41 +609,35 @@ export default function DashboardPage() {
 
           {/* Breakdown Tables Campaign, Region, Platform */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Campaigns Table */}
+            {/* Campaigns Chart */}
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden lg:col-span-2 transition-colors duration-150">
               <div className="p-3 border-b border-[var(--border)] bg-[var(--surface-raised)]">
                 <h3 className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">
-                  Desempenho por Campanha
+                  Top 10 Campanhas por Volume
                 </h3>
               </div>
-              <div className="overflow-x-auto max-h-[350px]">
-                <table className="w-full text-sm text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-[var(--border)] text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">
-                      <th className="px-4 py-2.5">Campanha</th>
-                      <th className="px-4 py-2.5 text-right">Leads</th>
-                      <th className="px-4 py-2.5 text-right">Sem Ligação</th>
-                      <th className="px-4 py-2.5 text-right">Agendados</th>
-                      <th className="px-4 py-2.5 text-right">% Conversão</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(dashboardData.leadsPorCampanha).map(([camp, val]) => {
-                      const conv = val.total > 0 ? ((val.agendouReuniao / val.total) * 100).toFixed(1) : '0.0'
-                      return (
-                        <tr key={camp} className="border-b border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors duration-150">
-                          <td className="px-4 py-2.5 font-semibold text-[var(--text-primary)] truncate max-w-[250px]" title={camp}>
-                            {camp}
-                          </td>
-                          <td className="px-4 py-2.5 text-right text-[var(--text-secondary)]">{val.total}</td>
-                          <td className="px-4 py-2.5 text-right text-[var(--text-secondary)]">{val.semLigacao}</td>
-                          <td className="px-4 py-2.5 text-right text-emerald-600 font-semibold">{val.agendouReuniao}</td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-[var(--text-primary)]">{conv}%</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+              <div className="p-4 h-[350px]">
+                <Bar
+                  data={campaignsChartData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: { position: 'top', labels: { color: isDark ? '#94a3b8' : '#64748b' } }
+                    },
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                        grid: { color: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' },
+                        ticks: { color: isDark ? '#94a3b8' : '#64748b' }
+                      },
+                      x: {
+                        grid: { display: false },
+                        ticks: { color: isDark ? '#94a3b8' : '#64748b', maxRotation: 45, minRotation: 45 }
+                      }
+                    }
+                  }}
+                />
               </div>
             </div>
 

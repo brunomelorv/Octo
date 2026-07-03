@@ -40,19 +40,26 @@ async def list_negocios(
 
     search: str | None = Query(None),
 
+    consultant: str | None = Query(None),
+
     current_user: UserResponse = Depends(get_current_user)
 
 ):
 
     """
 
-    Lists deals (negocios) filtered by campaign or search term.
+    Lists deals (negocios) filtered by campaign, search term, or consultant.
 
     """
 
     try:
 
-        return await negocios_service.get_negocios(campaign_id=campaign_id, search=search, user=current_user.model_dump())
+        return await negocios_service.get_negocios(
+            campaign_id=campaign_id, 
+            search=search, 
+            user=current_user.model_dump(),
+            consultant=consultant
+        )
 
     except Exception as e:
 

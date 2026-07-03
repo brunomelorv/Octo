@@ -27,4 +27,9 @@ export const leadsService = {
     const response = await api.get(`/leads/${phone}`)
     return response.data
   },
+
+  async getConsultantsPerformance() {
+    const response = await api.get('/leads/consultants-performance')
+    return response.data
+  },
 }

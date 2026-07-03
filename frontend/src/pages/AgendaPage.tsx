@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Calendar, MessageSquare, Send, ChevronLeft, ChevronRight, Phone, CheckCircle2, X, ChevronDown, ChevronUp, Clock } from 'lucide-react'
 import { leadsService } from '../services/leads'
 import { agendaService } from '../services/agenda'
@@ -15,13 +16,24 @@ const parseComment = (text: string) => {
 }
 
 export default function AgendaPage() {
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [searchParams, setSearchParams] = useSearchParams()
+  const dateParam = searchParams.get('date')
+
+  const [currentDate, setCurrentDate] = useState(() => {
+    if (dateParam) {
+      const parts = dateParam.split('-')
+      if (parts.length === 3) {
+        return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+      }
+    }
+    return new Date()
+  })
   const [items, setItems] = useState<AgendaItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
   const [commentInputs, setCommentInputs] = useState<{ [key: string]: string }>({})
-  const [tagInputs, setTagInputs] = useState<{ [key: string]: { tag: string, date: string } }>({})
+  const [tagInputs, setTagInputs] = useState<{ [key: string]: { tag: string, date: string, time: string } }>({})
   const [submittingComment, setSubmittingComment] = useState<string | null>(null)
   const [rescheduleData, setRescheduleData] = useState<{ [key: string]: { date: string, time: string } }>({})
   
@@ -51,6 +63,18 @@ export default function AgendaPage() {
     fetchAgenda(dateStr)
   }, [dateStr])
 
+  useEffect(() => {
+    if (dateParam) {
+      const parts = dateParam.split('-')
+      if (parts.length === 3) {
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+        if (d.toDateString() !== currentDate.toDateString()) {
+          setCurrentDate(d)
+        }
+      }
+    }
+  }, [dateParam])
+
   const fetchAgenda = async (date: string) => {
     setLoading(true)
     setError(null)
@@ -68,6 +92,8 @@ export default function AgendaPage() {
   const changeDate = (days: number) => {
     const newDate = new Date(currentDate)
     newDate.setDate(newDate.getDate() + days)
+    const formatted = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-${String(newDate.getDate()).padStart(2, '0')}`
+    setSearchParams({ date: formatted })
     setCurrentDate(newDate)
   }
 
@@ -87,23 +113,29 @@ export default function AgendaPage() {
     try {
       let fullComment = comment || ''
       if (tagData?.tag) {
-        fullComment = `[Tag: ${tagData.tag}${tagData.date ? ` - Data: ${tagData.date}` : ''}] ${fullComment}`
+        fullComment = `[Tag: ${tagData.tag}${tagData.date ? ` - Data: ${tagData.date}` : ''}${tagData.time ? ` - Horário: ${tagData.time}` : ''}] ${fullComment}`
       }
 
       const newComment = await agendaService.addComment(phone, dateStr, fullComment, user.email || 'Usuário')
       
-      setItems(prev => prev.map(item => {
-        if (item.phone === phone) {
-          return {
-            ...item,
-            comments: [newComment, ...item.comments]
-          }
-        }
-        return item
-      }))
+      const targetDate = tagData?.date
       
       setCommentInputs(prev => ({ ...prev, [phone]: '' }))
-      setTagInputs(prev => ({ ...prev, [phone]: { tag: '', date: '' } }))
+      setTagInputs(prev => ({ ...prev, [phone]: { tag: '', date: '', time: '' } }))
+
+      if ((tagData?.tag === 'Tarefa' || tagData?.tag === 'Chamada') && targetDate) {
+        setSearchParams({ date: targetDate })
+      } else {
+        setItems(prev => prev.map(item => {
+          if (item.phone === phone) {
+            return {
+              ...item,
+              comments: [newComment, ...item.comments]
+            }
+          }
+          return item
+        }))
+      }
     } catch (err) {
       console.error(err)
       alert('Erro ao salvar comentário e tag')
@@ -192,6 +224,10 @@ export default function AgendaPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Agenda do Dia</h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">Acompanhe retornos e reuniões agendadas</p>
+          <div className="mt-2 inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full text-sm font-medium border border-indigo-200 dark:border-indigo-800">
+            <span className="flex h-2 w-2 rounded-full bg-indigo-500"></span>
+            {items.length} agendamento{items.length !== 1 ? 's' : ''} hoje
+          </div>
         </div>
         
         <div className="flex items-center gap-4">
@@ -249,6 +285,10 @@ export default function AgendaPage() {
                     <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
                       item.event_type === 'Reunião' 
                         ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' 
+                        : item.event_type === 'Tarefa'
+                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                        : item.event_type === 'Chamada'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                         : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                     }`}>
                       {item.event_type}
@@ -475,7 +515,14 @@ export default function AgendaPage() {
                   />
                   <button 
                     onClick={() => handleAddComment(item.phone)}
-                    disabled={submittingComment === item.phone || (!commentInputs[item.phone]?.trim() && !tagInputs[item.phone]?.tag) || (tagInputs[item.phone]?.tag === 'Tarefa' && !tagInputs[item.phone]?.date)}
+                    disabled={
+                      !!(
+                        submittingComment === item.phone ||
+                        (!commentInputs[item.phone]?.trim() && !tagInputs[item.phone]?.tag) ||
+                        (tagInputs[item.phone]?.tag === 'Tarefa' && (!tagInputs[item.phone]?.date || !tagInputs[item.phone]?.time)) ||
+                        (tagInputs[item.phone]?.tag === 'Chamada' && ((tagInputs[item.phone]?.date && !tagInputs[item.phone]?.time) || (!tagInputs[item.phone]?.date && tagInputs[item.phone]?.time)))
+                      )
+                    }
                     className="bg-[var(--text-primary)] text-[var(--surface)] p-2 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors"
                   >
                     <Send className="h-4 w-4" />
@@ -489,22 +536,37 @@ export default function AgendaPage() {
                     {['Tarefa', 'Chamada', 'Reunião Realizada'].map(tag => (
                       <button
                         key={tag}
-                        onClick={() => setTagInputs(prev => ({ ...prev, [item.phone]: { ...prev[item.phone], tag: prev[item.phone]?.tag === tag ? '' : tag } }))}
+                        onClick={() => setTagInputs(prev => ({ ...prev, [item.phone]: { tag: prev[item.phone]?.tag === tag ? '' : tag, date: '', time: '' } }))}
                         className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${tagInputs[item.phone]?.tag === tag ? 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800' : 'bg-[var(--surface)] text-[var(--text-secondary)] border-[var(--border)] hover:bg-[var(--surface-hover)]'}`}
                       >
                         {tag}
                       </button>
                     ))}
                   </div>
-                  {tagInputs[item.phone]?.tag === 'Tarefa' && (
-                    <div className="animate-in fade-in slide-in-from-top-1 mt-2">
-                      <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Data da Tarefa (Obrigatória)</label>
-                      <input 
-                        type="date"
-                        value={tagInputs[item.phone]?.date || ''}
-                        onChange={(e) => setTagInputs(prev => ({ ...prev, [item.phone]: { ...prev[item.phone], date: e.target.value } }))}
-                        className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-1.5 text-sm"
-                      />
+                  {(tagInputs[item.phone]?.tag === 'Tarefa' || tagInputs[item.phone]?.tag === 'Chamada') && (
+                    <div className="animate-in fade-in slide-in-from-top-1 mt-2 space-y-2">
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                          Data da {tagInputs[item.phone]?.tag} {tagInputs[item.phone]?.tag === 'Tarefa' ? '(Obrigatória)' : '(Opcional)'}
+                        </label>
+                        <input 
+                          type="date"
+                          value={tagInputs[item.phone]?.date || ''}
+                          onChange={(e) => setTagInputs(prev => ({ ...prev, [item.phone]: { ...prev[item.phone], date: e.target.value } }))}
+                          className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-1.5 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                          Horário da {tagInputs[item.phone]?.tag} {tagInputs[item.phone]?.date ? '(Obrigatório)' : '(Opcional)'}
+                        </label>
+                        <input 
+                          type="time"
+                          value={tagInputs[item.phone]?.time || ''}
+                          onChange={(e) => setTagInputs(prev => ({ ...prev, [item.phone]: { ...prev[item.phone], time: e.target.value } }))}
+                          className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-1.5 text-sm"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -559,15 +621,29 @@ export default function AgendaPage() {
                     </div>
                   ) : historyData[item.phone] ? (
                     <div className="space-y-4 relative before:absolute before:inset-y-0 before:left-[11px] before:w-px before:bg-[var(--border)]">
-                      {historyData[item.phone].chamadas?.map((call: any, cIdx: number) => {
-                        const dateObj = new Date(call.data_hora)
+                      {(historyData[item.phone].timeline || historyData[item.phone].chamadas)?.map((event: any, cIdx: number) => {
+                        const isLegacyCall = !event.type; // For backwards compatibility
+                        const type = event.type || 'call';
+                        const call = isLegacyCall ? event : event.data;
+                        
+                        let dateObj;
+                        if (type === 'call') dateObj = new Date(call.data_hora);
+                        else if (type === 'historico') dateObj = new Date(call.data_hora);
+                        else dateObj = new Date(call.created_at);
+
                         const dateStr = dateObj.toLocaleDateString('pt-BR')
                         const timeStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
                         
                         return (
                           <div key={cIdx} className="relative pl-8">
-                            <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-[var(--surface)] border-2 border-[var(--accent)] flex items-center justify-center z-10 shadow-sm">
-                              <div className="w-2 h-2 rounded-full bg-[var(--accent)]" />
+                            <div className={`absolute left-0 top-1.5 w-6 h-6 rounded-full bg-[var(--surface)] border-2 flex items-center justify-center z-10 shadow-sm ${
+                              type === 'call' ? 'border-[var(--accent)]' :
+                              type === 'historico' ? 'border-purple-500' : 'border-emerald-500'
+                            }`}>
+                              <div className={`w-2 h-2 rounded-full ${
+                                type === 'call' ? 'bg-[var(--accent)]' :
+                                type === 'historico' ? 'bg-purple-500' : 'bg-emerald-500'
+                              }`} />
                             </div>
                             <div className="bg-[var(--surface-raised)] border border-[var(--border)] rounded-xl p-4">
                               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -575,12 +651,22 @@ export default function AgendaPage() {
                                   {dateStr} às {timeStr}
                                 </span>
                                 <div className="flex items-center gap-2">
-                                  {call.status_ligacao && (
+                                  {type === 'call' && call.status_ligacao && (
                                     <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20">
                                       {call.status_ligacao}
                                     </span>
                                   )}
-                                  {call.duracao_segundos > 0 && (
+                                  {type === 'historico' && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-purple-500/10 text-purple-600 border border-purple-500/20">
+                                      Mudança de Etapa
+                                    </span>
+                                  )}
+                                  {type === 'comment' && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                      Comentário / Tag
+                                    </span>
+                                  )}
+                                  {type === 'call' && call.duracao_segundos > 0 && (
                                     <span className="text-[10px] bg-[var(--surface)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded border border-[var(--border)]">
                                       {call.duracao_segundos}s
                                     </span>
@@ -588,13 +674,25 @@ export default function AgendaPage() {
                                 </div>
                               </div>
                               
-                              {call.resumo_ligacao && (
+                              {type === 'call' && call.resumo_ligacao && (
                                 <div className="text-sm text-[var(--text-secondary)] leading-relaxed mt-1">
                                   {call.resumo_ligacao}
                                 </div>
                               )}
 
-                              {call.tag && (
+                              {type === 'historico' && (
+                                <div className="text-sm text-[var(--text-secondary)] leading-relaxed mt-1">
+                                  <span className="font-medium text-[var(--text-primary)]">{call.usuario_nome}</span> moveu o lead de <b>{call.etapa_anterior}</b> para <b>{call.etapa_nova}</b>.
+                                </div>
+                              )}
+
+                              {type === 'comment' && (
+                                <div className="text-sm text-[var(--text-secondary)] leading-relaxed mt-1 whitespace-pre-wrap">
+                                  <b>{call.usuario_email?.split('@')[0]}:</b> {call.comentario}
+                                </div>
+                              )}
+
+                              {type === 'call' && call.tag && (
                                 <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-[var(--border)]/50">
                                   {call.tag.split(',').map((t: string, tIdx: number) => (
                                     <span key={tIdx} className="text-[9px] uppercase tracking-wider font-semibold bg-[var(--surface)] border border-[var(--border)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded">

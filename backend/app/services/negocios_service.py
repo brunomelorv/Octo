@@ -2,7 +2,7 @@ import datetime
 from app.services.database import query
 import app.services.leads_service as leads_service
 
-async def get_negocios(campaign_id=None, search=None, user=None) -> list[dict]:
+async def get_negocios(campaign_id=None, search=None, user=None, consultant=None) -> list[dict]:
     """
     Retrieves all leads mapped as deals, with their saved stage and deal values.
     Defaults staging dynamically based on latest call metrics.
@@ -19,7 +19,11 @@ async def get_negocios(campaign_id=None, search=None, user=None) -> list[dict]:
         conditions.append("(l.full_name LIKE ? OR l.phone LIKE ? OR l.email LIKE ? OR l.campaign_name LIKE ? OR l.city LIKE ?)")
         params.extend([s_term, s_term, s_term, s_term, s_term])
         
-    if user and user.get("role") == "consultor":
+    if consultant is not None and consultant.strip() != "":
+        c_term = consultant.strip()
+        conditions.append("(n.usuario_email = ? OR n.usuario_nome = ?)")
+        params.extend([c_term, c_term])
+    elif user and user.get("role") == "consultor":
         conditions.append("(n.usuario_email = ? OR n.usuario_email IS NULL)")
         params.append(user["email"])
         
@@ -102,6 +106,14 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
     if not lead_rows:
         return False
     lead = lead_rows[0]
+    
+    # Try to resolve a better name from users table if user_name is email prefix or empty
+    if user_email and (not user_name or '@' in user_name or user_name == user_email.split('@')[0]):
+        user_rows = await query("SELECT name FROM users WHERE email = ? LIMIT 1", (user_email,))
+        if user_rows:
+            user_name = user_rows[0]["name"]
+        elif not user_name:
+            user_name = user_email.split('@')[0]
         
     # Check if entry already exists in negocios to get previous stage
     exists = await query("SELECT etapa FROM negocios WHERE lead_id = ?", (lead_id,))
@@ -178,9 +190,15 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
 
 async def get_negocios_historico() -> list[dict]:
     """
-    Retrieves the complete audit trail from negocios_historico, joined with lead name.
+    Retrieves a unified audit trail including stage transitions, agenda comments/tags,
+    agenda completions, and manual reschedules, joined with lead name.
     """
-    sql = """
+    # 1. Fetch user email-to-name mapping
+    users_rows = await query("SELECT email, name FROM users")
+    user_names = {row["email"]: row["name"] for row in users_rows}
+
+    # 2. Stage transitions from negocios_historico
+    sql_hist = """
     SELECT h.id, h.lead_id, h.etapa_anterior, h.etapa_nova, h.valor, 
            h.usuario_email, h.usuario_nome, h.data_hora, l.full_name as lead_name
     FROM negocios_historico h
@@ -188,5 +206,118 @@ async def get_negocios_historico() -> list[dict]:
     ORDER BY h.data_hora DESC
     LIMIT 200
     """
-    rows = await query(sql)
-    return [dict(row) for row in rows]
+    hist_rows = await query(sql_hist)
+    
+    merged_history = []
+    for r in hist_rows:
+        merged_history.append({
+            "id": r["id"],
+            "lead_id": r["lead_id"],
+            "etapa_anterior": r["etapa_anterior"] or "Sem Contato",
+            "etapa_nova": r["etapa_nova"],
+            "valor": r["valor"] or 0.0,
+            "usuario_email": r["usuario_email"],
+            "usuario_nome": r["usuario_nome"] or user_names.get(r["usuario_email"], r["usuario_email"].split('@')[0]),
+            "data_hora": r["data_hora"],
+            "lead_name": r["lead_name"] or "Lead Desconhecido"
+        })
+
+    # 3. Comment / Tag registrations from agenda_comments
+    sql_comments = """
+    SELECT ac.id, ac.telefone_normalizado, ac.comentario, ac.created_at, ac.usuario_email,
+           l.id as lead_id, l.full_name as lead_name, n.etapa as current_stage
+    FROM agenda_comments ac
+    LEFT JOIN leads l ON ac.telefone_normalizado = l.phone
+    LEFT JOIN negocios n ON n.lead_id = l.id
+    ORDER BY ac.created_at DESC
+    LIMIT 200
+    """
+    comments_rows = await query(sql_comments)
+    for r in comments_rows:
+        comment = r["comentario"] or ""
+        etapa_nova = "Anotação"
+        if "[Tag: " in comment:
+            tag_part = comment.split("]")[0].replace("[Tag:", "").strip()
+            etapa_nova = f"Tag: {tag_part}"
+        
+        email = r["usuario_email"]
+        name = user_names.get(email, email.split('@')[0])
+        
+        merged_history.append({
+            "id": 1000000 + r["id"],
+            "lead_id": r["lead_id"] or "",
+            "etapa_anterior": r["current_stage"] or "Sem Contato",
+            "etapa_nova": etapa_nova,
+            "valor": 0.0,
+            "usuario_email": email,
+            "usuario_nome": name,
+            "data_hora": r["created_at"],
+            "lead_name": r["lead_name"] or f"Lead ({r['telefone_normalizado']})"
+        })
+
+    # 4. Agenda Completions from agenda_completions
+    sql_completions = """
+    SELECT ac.chamada_id, ac.completed_at, ac.completed_by,
+           c.resumo_ligacao, l.id as lead_id, l.full_name as lead_name, n.etapa as current_stage
+    FROM agenda_completions ac
+    JOIN chamadas c ON ac.chamada_id = c.id
+    LEFT JOIN leads l ON c.telefone_normalizado = l.phone
+    LEFT JOIN negocios n ON n.lead_id = l.id
+    ORDER BY ac.completed_at DESC
+    LIMIT 200
+    """
+    completions_rows = await query(sql_completions)
+    for r in completions_rows:
+        email = r["completed_by"]
+        name = user_names.get(email, email.split('@')[0])
+        
+        resumo = r["resumo_ligacao"] or ""
+        etapa_nova = "Agenda Concluída"
+        if "Perdido" in resumo:
+            etapa_nova = "Agenda Concluída (Perdido)"
+        elif "Ganho" in resumo:
+            etapa_nova = "Agenda Concluída (Ganho)"
+        
+        merged_history.append({
+            "id": 2000000 + r["chamada_id"],
+            "lead_id": r["lead_id"] or "",
+            "etapa_anterior": r["current_stage"] or "Sem Contato",
+            "etapa_nova": etapa_nova,
+            "valor": 0.0,
+            "usuario_email": email,
+            "usuario_nome": name,
+            "data_hora": r["completed_at"],
+            "lead_name": r["lead_name"] or "Lead Desconhecido"
+        })
+
+    # 5. Reschedules from chamadas
+    sql_reschedules = """
+    SELECT c.id, c.data_hora, c.anotacoes as usuario_email, c.resumo_ligacao,
+           l.id as lead_id, l.full_name as lead_name, n.etapa as current_stage
+    FROM chamadas c
+    LEFT JOIN leads l ON c.telefone_normalizado = l.phone
+    LEFT JOIN negocios n ON n.lead_id = l.id
+    WHERE c.status_ligacao = 'Reagendamento CRM'
+    ORDER BY c.data_hora DESC
+    LIMIT 200
+    """
+    reschedules_rows = await query(sql_reschedules)
+    for r in reschedules_rows:
+        email = r["usuario_email"] or "Sistema"
+        name = user_names.get(email, email.split('@')[0]) if email != "Sistema" else "Sistema"
+        
+        merged_history.append({
+            "id": 3000000 + r["id"],
+            "lead_id": r["lead_id"] or "",
+            "etapa_anterior": r["current_stage"] or "Sem Contato",
+            "etapa_nova": "Agenda Reagendada",
+            "valor": 0.0,
+            "usuario_email": email,
+            "usuario_nome": name,
+            "data_hora": r["data_hora"],
+            "lead_name": r["lead_name"] or "Lead Desconhecido"
+        })
+
+    # Sort merged history chronologically descending
+    merged_history.sort(key=lambda x: x["data_hora"] or "", reverse=True)
+    return merged_history[:200]

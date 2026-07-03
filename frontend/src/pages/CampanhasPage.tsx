@@ -362,7 +362,7 @@ export default function CampanhasPage() {
                 <th className="px-4 py-3 text-right">Chamadas</th>
                 <th className="px-4 py-3 text-right">Reuniões</th>
                 <th className="px-4 py-3 text-right">Retornos</th>
-                <th className="px-4 py-3 text-center">Taxa de Contato / Engajamento</th>
+                <th className="px-4 py-3 text-center">Taxa de Ligação / Engajamento</th>
                 <th className="px-4 py-3 text-center">Ações</th>
               </tr>
             </thead>

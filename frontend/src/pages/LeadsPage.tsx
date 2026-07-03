@@ -26,7 +26,8 @@ import {
   FileText,
   Activity,
   Award,
-  Clock
+  Clock,
+  Tag
 } from 'lucide-react'
 
 // Helper to format date strings
@@ -82,7 +83,7 @@ const getStatusBadgeStyle = (status: string) => {
       return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/30'
     case 'Lead Qualificado':
       return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border border-slate-350 dark:border-slate-700'
-    case 'Sem Contato Efetivo':
+    case 'Sem Ligação':
       return 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/30'
     case 'Caixa Postal / Não Atendido':
       return 'bg-slate-100 text-slate-650 dark:bg-slate-800/40 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50'
@@ -138,10 +139,10 @@ function classifyCall(call: Call) {
     return { classif: 'Caixa Postal / Não Atendido', subcat: 'Ligação Curta / Sem Diálogo', score: 2 }
   }
   if (resumo.includes('ligar depois') || resumo.includes('retornar mais tarde') || resumo.includes('ligar mais tarde')) {
-    return { classif: 'Sem Contato Efetivo', subcat: 'Pediu para Ligar Depois', score: 4 }
+    return { classif: 'Sem Ligação', subcat: 'Pediu para Ligar Depois', score: 4 }
   }
   if (resumo.includes('avaliando internamente') || resumo.includes('avaliar com o sócio')) {
-    return { classif: 'Sem Contato Efetivo', subcat: 'Avaliando Internamente', score: 5 }
+    return { classif: 'Sem Ligação', subcat: 'Avaliando Internamente', score: 5 }
   }
   if (resumo.includes('desqualificado') || resumo.includes('{lead desqualificado}') || resumo.includes('fora do perfil')) {
     return { classif: 'Lead Desqualificado', subcat: 'Fora do Perfil de Cliente Ideal', score: 1 }
@@ -155,7 +156,7 @@ function classifyCall(call: Call) {
   if (dur >= 30) {
     return { classif: 'Lead Qualificado', subcat: 'Qualificado / Agendou reunião', score: 6 }
   } else if (dur > 0) {
-    return { classif: 'Sem Contato Efetivo', subcat: 'Avaliando Internamente', score: 4 }
+    return { classif: 'Sem Ligação', subcat: 'Avaliando Internamente', score: 4 }
   }
   return { classif: 'Caixa Postal / Não Atendido', subcat: 'Caixa Postal / Não Atendido', score: 2 }
 }
@@ -353,7 +354,7 @@ export default function LeadsPage() {
         {/* KPI 4 */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-between transition-colors duration-150">
           <div className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Taxa de Contato</span>
+            <span className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">Taxa de Ligação</span>
             {kpisLoading ? (
               <div className="h-8 w-20 bg-[var(--surface-raised)] animate-pulse rounded-md"></div>
             ) : (
@@ -436,7 +437,7 @@ export default function LeadsPage() {
                 <option value="all">Todos os Status</option>
                 <option value="Agendou Reunião">Agendou Reunião</option>
                 <option value="Lead Qualificado">Lead Qualificado</option>
-                <option value="Sem Contato Efetivo">Sem Contato Efetivo</option>
+                <option value="Sem Ligação">Sem Ligação</option>
                 <option value="Caixa Postal / Não Atendido">Caixa Postal / Não Atendido</option>
                 <option value="Sem Interesse">Sem Interesse</option>
                 <option value="Lead Desqualificado">Lead Desqualificado</option>
@@ -782,100 +783,176 @@ export default function LeadsPage() {
                     <div className="space-y-3">
                       <h4 className="text-xs font-semibold uppercase tracking-widest text-[var(--text-secondary)] flex items-center gap-1.5">
                         <Volume2 className="h-4 w-4 stroke-[1.5]" />
-                        <span>Histórico de Chamadas ({selectedLead.chamadas?.length || 0})</span>
+                        <span>Linha do Tempo ({selectedLead.timeline?.length || selectedLead.chamadas?.length || 0})</span>
                       </h4>
 
-                      {!selectedLead.chamadas || selectedLead.chamadas.length === 0 ? (
+                      {!(selectedLead.timeline?.length || selectedLead.chamadas?.length) ? (
                         <div className="text-center py-10 border border-dashed border-[var(--border)] rounded-lg bg-[var(--surface-raised)]">
                           <Phone className="h-6 w-6 text-[var(--text-tertiary)] mx-auto mb-2 stroke-[1.5]" />
-                          <p className="text-xs text-[var(--text-secondary)] font-normal">Este lead ainda não recebeu nenhuma ligação de contato.</p>
+                          <p className="text-xs text-[var(--text-secondary)] font-normal">Este lead ainda não possui histórico.</p>
                         </div>
                       ) : (
                         <div className="relative pl-4 border-l border-[var(--border)] space-y-4 ml-2">
-                          {selectedLead.chamadas.map((call, idx) => {
-                            const { classif, subcat, score } = classifyCall(call)
-                            return (
-                              <div key={call.id || idx} className="relative">
-                                {/* Bullet indicator on the line */}
-                                <div className="absolute -left-[23px] top-1.5 h-2.5 w-2.5 rounded-full border border-[var(--border)] bg-[var(--accent)]"></div>
+                          {(selectedLead.timeline || selectedLead.chamadas).map((event: any, idx: number) => {
+                            const isLegacyCall = !event.type;
+                            const type = event.type || 'call';
+                            const itemData = isLegacyCall ? event : event.data;
 
-                                {/* Call item box */}
-                                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-md p-3.5 space-y-2 transition-colors duration-150">
-                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-[var(--border)] pb-2">
-                                    <div className="text-xs font-semibold text-[var(--text-primary)]">
-                                      {formatDate(call.data_hora)}
-                                    </div>
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${getStatusBadgeStyle(classif)}`}>
-                                        {classif}
+                            let dateObj;
+                            if (type === 'call') dateObj = new Date(itemData.data_hora);
+                            else if (type === 'historico') dateObj = new Date(itemData.data_hora);
+                            else dateObj = new Date(itemData.created_at);
+
+                            const call = type === 'call' ? itemData : null;
+                            let classif, subcat, score;
+                            if (call) {
+                              const classified = classifyCall(call);
+                              classif = classified.classif;
+                              subcat = classified.subcat;
+                              score = classified.score;
+                            }
+
+                            return (
+                              <div key={idx} className="relative">
+                                {/* Bullet indicator on the line */}
+                                <div className={`absolute -left-[23px] top-1.5 h-2.5 w-2.5 rounded-full border border-[var(--border)] ${
+                                  type === 'call' ? 'bg-[var(--accent)]' :
+                                  type === 'historico' ? 'bg-purple-500' : 'bg-emerald-500'
+                                }`}></div>
+
+                                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 shadow-sm hover:border-[var(--border-hover)] transition-colors duration-150">
+                                  <div className="flex items-center justify-between gap-2 mb-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs font-semibold text-[var(--text-primary)]">
+                                        {formatDate(dateObj.toISOString())}
                                       </span>
-                                      {subcat && subcat !== classif && (
-                                        <span className="text-[10px] text-[var(--text-secondary)]">({subcat})</span>
+                                      
+                                      {type === 'call' && classif && (
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase border ${
+                                          classif === 'Lead Qualificado' ? 'bg-green-500/10 text-green-600 border-green-500/20' :
+                                          classif === 'Caixa Postal / Não Atendido' ? 'bg-orange-500/10 text-orange-600 border-orange-500/20' :
+                                          classif === 'Agendou Reunião' ? 'bg-purple-500/10 text-purple-600 border-purple-500/20' :
+                                          classif === 'Sem Interesse' || classif === 'Lead Desqualificado' ? 'bg-red-500/10 text-red-600 border-red-500/20' :
+                                          'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                                        }`}>
+                                          {classif}
+                                        </span>
                                       )}
-                                      {score && (
-                                        <div className="flex items-center gap-0.5 text-amber-500 bg-amber-50 dark:bg-amber-950/20 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200/50">
-                                          <Star className="h-3 w-3 fill-amber-500 stroke-[1.5]" />
-                                          <span>{score}/8</span>
+
+                                      {type === 'historico' && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-purple-500/10 text-purple-600 border border-purple-500/20">
+                                          Mudança de Etapa
+                                        </span>
+                                      )}
+
+                                      {type === 'comment' && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                          Comentário
+                                        </span>
+                                      )}
+                                    </div>
+                                    {type === 'call' && call.duracao_segundos > 0 && (
+                                      <span className="text-[10px] font-medium text-[var(--text-tertiary)] flex items-center gap-1 shrink-0">
+                                        <Clock className="h-3 w-3" />
+                                        {formatDuration(call.duracao_segundos)}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {type === 'call' && call.resumo_ligacao && (
+                                    <div className="text-xs text-[var(--text-secondary)] leading-relaxed mt-1">
+                                      {call.resumo_ligacao}
+                                    </div>
+                                  )}
+
+                                  {type === 'historico' && (
+                                    <div className="text-xs text-[var(--text-secondary)] leading-relaxed mt-1">
+                                      <span className="font-medium text-[var(--text-primary)]">{itemData.usuario_nome}</span> moveu de <b>{itemData.etapa_anterior}</b> para <b>{itemData.etapa_nova}</b>.
+                                    </div>
+                                  )}
+
+                                  {type === 'comment' && (
+                                    <div className="text-xs text-[var(--text-secondary)] leading-relaxed mt-1 whitespace-pre-wrap">
+                                      <b>{itemData.usuario_email?.split('@')[0]}:</b> {itemData.comentario}
+                                    </div>
+                                  )}
+
+                                  {type === 'call' && (
+                                    <>
+                                      {(subcat || score) && (
+                                        <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-[var(--border)]">
+                                          {subcat && (
+                                            <span className="inline-flex items-center gap-1 text-[10px] text-[var(--text-tertiary)] bg-[var(--surface-raised)] px-1.5 py-0.5 rounded">
+                                              <Tag className="h-2.5 w-2.5" />
+                                              {subcat}
+                                            </span>
+                                          )}
+                                          {score && (
+                                            <div className="flex items-center gap-0.5 text-amber-500 bg-amber-50 dark:bg-amber-950/20 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200/50">
+                                              <Star className="h-3 w-3 fill-amber-500 stroke-[1.5]" />
+                                              <span>{score}/8</span>
+                                            </div>
+                                          )}
                                         </div>
                                       )}
-                                    </div>
-                                  </div>
 
-                                  {/* Call info grid */}
-                                  <div className="grid grid-cols-2 gap-2 text-xs text-[var(--text-secondary)]">
-                                    <div>
-                                      Duração: <span className="font-semibold text-[var(--text-primary)]">{formatDuration(call.duracao_segundos)}</span>
-                                    </div>
-                                    <div className="text-right">
-                                      Origem: <span className="font-semibold text-[var(--text-primary)]">{call.source_file ? call.source_file.replace('.csv', '') : 'Manual'}</span>
-                                    </div>
-                                  </div>
-
-                                  {/* Call AI Summary */}
-                                  {call.resumo_ligacao && (
-                                    <div className="bg-[var(--surface-raised)] border-l-2 border-[var(--accent)] p-2.5 rounded-r-md space-y-1">
-                                      <div className="text-[10px] font-semibold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-1">
-                                        <SparklesIcon className="h-3.5 w-3.5 text-[var(--text-secondary)] stroke-[1.5]" />
-                                        <span>Resumo de IA</span>
+                                      {/* Call info grid */}
+                                      <div className="grid grid-cols-2 gap-2 text-xs text-[var(--text-secondary)] mt-2">
+                                        <div>
+                                          Duração: <span className="font-semibold text-[var(--text-primary)]">{formatDuration(call.duracao_segundos)}</span>
+                                        </div>
+                                        <div className="text-right">
+                                          Origem: <span className="font-semibold text-[var(--text-primary)]">{call.source_file ? call.source_file.replace('.csv', '') : 'Manual'}</span>
+                                        </div>
                                       </div>
-                                      <p className="text-xs italic text-[var(--text-primary)] leading-relaxed">
-                                        "{call.resumo_ligacao}"
-                                      </p>
-                                    </div>
-                                  )}
 
-                                  {call.tag && (
-                                    <div className="flex flex-wrap gap-1">
-                                      {call.tag.split(',').map((t, tIdx) => (
-                                        <span
-                                          key={tIdx}
-                                          className="text-[10px] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded"
-                                        >
-                                          {t.trim()}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
+                                      {/* Call AI Summary */}
+                                      {call.resumo_ligacao && (
+                                        <div className="bg-[var(--surface-raised)] border-l-2 border-[var(--accent)] p-2.5 rounded-r-md space-y-1 mt-2">
+                                          <div className="text-[10px] font-semibold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-1">
+                                            <SparklesIcon className="h-3.5 w-3.5 text-[var(--text-secondary)] stroke-[1.5]" />
+                                            <span>Resumo de IA</span>
+                                          </div>
+                                          <p className="text-xs italic text-[var(--text-primary)] leading-relaxed">
+                                            "{call.resumo_ligacao}"
+                                          </p>
+                                        </div>
+                                      )}
 
-                                  {call.anotacoes && (
-                                    <div className="text-xs bg-[var(--surface-raised)] p-2 rounded border border-[var(--border)] text-[var(--text-primary)]">
-                                      <span className="font-semibold block mb-0.5">Anotações:</span>
-                                      {call.anotacoes}
-                                    </div>
-                                  )}
+                                      {call.tag && (
+                                        <div className="flex flex-wrap gap-1 mt-2">
+                                          {call.tag.split(',').map((t: string, tIdx: number) => (
+                                            <span
+                                              key={tIdx}
+                                              className="text-[10px] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded"
+                                            >
+                                              {t.trim()}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
 
-                                  {/* Audio Player */}
-                                  {call.link_gravacao && (
-                                    <div className="pt-1">
-                                      <label className="text-[10px] font-semibold text-[var(--text-secondary)] block mb-1">
-                                        Gravação do Contato
-                                      </label>
-                                      <audio
-                                        controls
-                                        src={call.link_gravacao}
-                                        className="w-full h-8 outline-none rounded bg-[var(--surface-raised)] border border-[var(--border)]"
-                                      />
-                                    </div>
+                                      {call.anotacoes && (
+                                        <div className="text-xs bg-[var(--surface-raised)] p-2 rounded border border-[var(--border)] text-[var(--text-primary)] mt-2">
+                                          <span className="font-semibold block mb-0.5">Anotações:</span>
+                                          {call.anotacoes}
+                                        </div>
+                                      )}
+
+                                      {/* Audio Player */}
+                                      {call.link_gravacao && (
+                                        <div className="pt-1 mt-2">
+                                          <label className="text-[10px] font-semibold text-[var(--text-secondary)] block mb-1">
+                                            Gravação do Contato
+                                          </label>
+                                          <audio
+                                            controls
+                                            src={call.link_gravacao}
+                                            className="w-full h-8 outline-none rounded bg-[var(--surface-raised)] border border-[var(--border)]"
+                                          />
+                                        </div>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               </div>

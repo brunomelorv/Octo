@@ -50,4 +50,5 @@ export interface Call {
 
 export interface LeadWithCalls extends Lead {
   chamadas: Call[]
+  timeline?: any[]
 }

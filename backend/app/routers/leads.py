@@ -59,6 +59,17 @@ async def get_dashboard_data(current_user: UserResponse = Depends(get_current_us
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 
+@router.get("/consultants-performance")
+async def get_consultants_performance(current_user: UserResponse = Depends(get_current_user)):
+    """
+    Returns performance metrics per consultant.
+    """
+    try:
+        return await leads_service.get_consultants_performance()
+    except Exception as e:
+        logger.exception("Erro ao obter performance dos consultores")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
 @router.get("/{phone}")
 async def get_lead_by_phone(
     phone: str,

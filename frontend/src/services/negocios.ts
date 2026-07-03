@@ -20,7 +20,7 @@ export interface Negocio {
 }
 
 export const negociosService = {
-  async getNegocios(params?: { campaign_id?: string; search?: string }): Promise<Negocio[]> {
+  async getNegocios(params?: { campaign_id?: string; search?: string; consultant?: string }): Promise<Negocio[]> {
     const response = await api.get('/negocios/', { params })
     return response.data
   },

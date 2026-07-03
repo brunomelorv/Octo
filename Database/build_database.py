@@ -4,6 +4,12 @@ import sqlite3
 import re
 import sys
 import pandas as pd
+from dotenv import load_dotenv
+
+# Load env variables from parent directory
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(script_dir)
+load_dotenv(os.path.join(parent_dir, '.env'))
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -56,8 +62,8 @@ def map_column(col):
     return re.sub(r'[^a-z0-9_]', '_', col_lower).strip('_')
 
 def consolidate_leads(db_conn):
-    source_folder = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Projetos\Marketing e Pitch\Marketing\leads_facebook"
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    source_folder = os.getenv("FACEBOOK_LEADS_DIR", os.path.join(script_dir, "leads_facebook"))
     csv_out_path = os.path.join(script_dir, "leads_consolidated.csv")
     
     print("\n--- Processing Facebook Leads ---")
@@ -192,8 +198,8 @@ def consolidate_leads(db_conn):
     return True
 
 def consolidate_calls(db_conn):
-    source_folder = r"C:\Users\BrunoPereiradeMeloAr\Desktop\Projetos\Marketing e Pitch\analise PitchYEs\chamadas_pitchyes"
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    source_folder = os.getenv("PITCHYES_CALLS_DIR", os.path.join(script_dir, "chamadas_pitchyes"))
     csv_out_path = os.path.join(script_dir, "chamadas_consolidated.csv")
     
     print("\n--- Processing PitchYes Calls ---")
