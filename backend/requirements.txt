@@ -14,10 +14,3 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 aiosqlite==0.20.0
 slowapi==0.1.9
-
-# Security auditing (run: pip-audit after installing)
-pip-audit==2.7.3
-
-# Test dependencies
-pytest==8.3.4
-pytest-asyncio==0.24.0

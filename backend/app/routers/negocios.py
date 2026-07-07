@@ -9,6 +9,7 @@ from app.routers.auth import get_current_user
 from app.models.user import UserResponse
 
 import app.services.negocios_service as negocios_service
+from app.services.database import query as db_query
 
 
 
@@ -85,7 +86,7 @@ async def list_negocios_historico(
 
     try:
 
-        return await negocios_service.get_negocios_historico()
+        return await negocios_service.get_negocios_historico(user=current_user.model_dump())
 
     except Exception as e:
 
@@ -114,6 +115,19 @@ async def update_negocio(
     """
 
     try:
+
+        # IDOR protection: consultors can only update their own or unassigned deals
+        if current_user.role == "consultor":
+            existing = await db_query(
+                "SELECT usuario_email FROM negocios WHERE lead_id = ?", (lead_id,)
+            )
+            if existing:
+                owner = existing[0].get("usuario_email")
+                if owner and owner != current_user.email:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Você não tem permissão para alterar este negócio."
+                    )
 
         success = await negocios_service.save_negocio(
 

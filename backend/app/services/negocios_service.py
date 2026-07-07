@@ -188,7 +188,7 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
             
     return True
 
-async def get_negocios_historico() -> list[dict]:
+async def get_negocios_historico(user: dict = None) -> list[dict]:
     """
     Retrieves a unified audit trail including stage transitions, agenda comments/tags,
     agenda completions, and manual reschedules, joined with lead name.
@@ -320,4 +320,11 @@ async def get_negocios_historico() -> list[dict]:
 
     # Sort merged history chronologically descending
     merged_history.sort(key=lambda x: x["data_hora"] or "", reverse=True)
+
+    # Role-based filtering: consultors only see their own activity
+    if user and user.get("role") == "consultor":
+        user_email = user.get("email", "")
+        merged_history = [h for h in merged_history if h["usuario_email"] == user_email]
+
     return merged_history[:200]
+

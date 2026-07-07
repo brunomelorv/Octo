@@ -145,13 +145,21 @@ _default_origins = [
 ]
 
 _env_origins = os.getenv("CORS_ORIGINS")
-origins = [o.strip() for o in _env_origins.split(",") if o.strip()] if _env_origins else _default_origins
+if _env_origins and _env_origins.strip() == "*":
+    origins = ["*"]
+    _allow_credentials = False  # Required by CORS spec when using wildcard
+elif _env_origins:
+    origins = [o.strip() for o in _env_origins.split(",") if o.strip()]
+    _allow_credentials = True
+else:
+    origins = _default_origins
+    _allow_credentials = True
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
+    allow_credentials=_allow_credentials,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 

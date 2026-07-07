@@ -173,9 +173,15 @@ async def get_user_by_email(email: str, include_inactive: bool = False) -> Optio
     finally:
         await db.close()
 
+# Pre-computed dummy hash for timing-safe login (prevents user enumeration via response time)
+_DUMMY_HASH = hash_password("dummy-timing-safe-value")
+
 async def authenticate_user(email: str, password: str) -> Optional[dict]:
     user = await get_user_by_email(email)
-    if not user or not verify_password(password, user.get("password_hash", "")):
+    # Always run verify_password to prevent timing oracle (user enumeration)
+    password_hash = user.get("password_hash", "") if user else _DUMMY_HASH
+    password_valid = verify_password(password, password_hash)
+    if not user or not password_valid:
         return None
     return user
 

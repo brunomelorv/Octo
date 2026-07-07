@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { leadsService } from '../services/leads'
+import DOMPurify from 'dompurify'
 import api from '../services/api'
 import { aggregateData, formatDuration } from '../utils/dashboardHelpers'
 import type {
@@ -1516,7 +1517,7 @@ export default function DashboardPage() {
                 </div>
                 <div
                   className="p-5 overflow-y-auto max-h-[65vh] max-w-none text-xs text-[var(--text-primary)] leading-relaxed space-y-4 insights-container bg-[var(--background)]"
-                  dangerouslySetInnerHTML={{ __html: insights }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(insights) }}
                 />
               </div>
             ) : (
