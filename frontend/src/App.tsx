@@ -28,7 +28,7 @@ function RootRedirect() {
 }
 
 export default function App() {
-  const token = useAuthStore((state) => state.token)
+  const isChecking = useAuthStore((state) => state.isChecking)
   const setAuth = useAuthStore((state) => state.setAuth)
   const logout = useAuthStore((state) => state.logout)
   const setConfig = useConfigStore((state) => state.setConfig)
@@ -39,19 +39,27 @@ export default function App() {
       .then(res => setConfig(res.data))
       .catch(err => console.error('Failed to load config:', err))
 
-    if (token) {
-      Promise.all([
-        authService.getMe(),
-        authService.getMyPermissions().catch(() => [])
-      ])
-        .then(([user, permissions]) => {
-          setAuth(user, token, permissions)
-        })
-        .catch(() => {
-          logout()
-        })
-    }
-  }, [token, setAuth, logout, setConfig])
+    // Verificação de sessão ao carregar a página
+    Promise.all([
+      authService.getMe(),
+      authService.getMyPermissions().catch(() => [])
+    ])
+      .then(([user, permissions]) => {
+        // Guardamos um token fictício em memória para que o resto da aplicação que dependa dele funcione
+        setAuth(user, 'session-active', permissions)
+      })
+      .catch(() => {
+        logout()
+      })
+  }, [setAuth, logout, setConfig])
+
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-[var(--accent)]"></div>
+      </div>
+    )
+  }
 
   return (
     <Routes>

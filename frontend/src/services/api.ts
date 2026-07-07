@@ -1,12 +1,14 @@
 import axios from 'axios'
+import { useAuthStore } from '../store/authStore'
 
 const api = axios.create({
   baseURL: '/api',
+  withCredentials: true,
 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) {
+  const token = useAuthStore.getState().token
+  if (token && token !== 'session-active') {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
@@ -23,7 +25,7 @@ api.interceptors.response.use(
       // Don't redirect if we're already on the login page or this IS the login request
       const isLoginRequest = error.config?.url?.includes('/auth/login')
       if (!isLoginRequest) {
-        localStorage.removeItem('token')
+        useAuthStore.getState().logout()
         window.location.href = '/login'
       }
     }

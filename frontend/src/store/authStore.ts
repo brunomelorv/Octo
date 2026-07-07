@@ -14,21 +14,23 @@ interface AuthState {
   token: string | null
   isAuthenticated: boolean
   permissions: string[]
+  isChecking: boolean
   setAuth: (user: User, token: string, permissions?: string[]) => void
   logout: () => void
+  setChecking: (isChecking: boolean) => void
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  token: localStorage.getItem('token'),
-  isAuthenticated: !!localStorage.getItem('token'),
+  token: null,
+  isAuthenticated: false,
   permissions: [],
+  isChecking: true,
   setAuth: (user, token, permissions = []) => {
-    localStorage.setItem('token', token)
-    set({ user, token, isAuthenticated: true, permissions })
+    set({ user, token, isAuthenticated: true, permissions, isChecking: false })
   },
   logout: () => {
-    localStorage.removeItem('token')
-    set({ user: null, token: null, isAuthenticated: false, permissions: [] })
+    set({ user: null, token: null, isAuthenticated: false, permissions: [], isChecking: false })
   },
+  setChecking: (isChecking) => set({ isChecking }),
 }))

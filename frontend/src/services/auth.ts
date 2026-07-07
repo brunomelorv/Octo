@@ -32,7 +32,13 @@ export const authService = {
     return response.data
   },
 
-  logout() {
-    useAuthStore.getState().logout()
+  async logout() {
+    try {
+      await api.post('/auth/logout')
+    } catch (err) {
+      console.error('Failed to logout from backend:', err)
+    } finally {
+      useAuthStore.getState().logout()
+    }
   },
 }

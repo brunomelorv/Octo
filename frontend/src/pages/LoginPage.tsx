@@ -25,7 +25,6 @@ export default function LoginPage() {
 
     try {
       const data = await authService.login(email, password)
-      localStorage.setItem('token', data.access_token)
       
       const [user, permissions] = await Promise.all([
         authService.getMe(),
@@ -40,7 +39,6 @@ export default function LoginPage() {
       } else {
         setError('E-mail ou senha incorretos.')
       }
-      localStorage.removeItem('token')
     } finally {
       setIsLoading(false)
     }

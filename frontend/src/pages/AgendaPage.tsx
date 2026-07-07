@@ -6,6 +6,7 @@ import { agendaService } from '../services/agenda'
 import { negociosService } from '../services/negocios'
 import type { AgendaItem } from '../services/agenda'
 import WhatsAppTemplateSelector from '../components/WhatsAppTemplateSelector'
+import { useAuthStore } from '../store/authStore'
 
 const parseComment = (text: string) => {
   const match = text.match(/^\[Tag: (.*?)\]\s*(.*)$/s)
@@ -57,7 +58,7 @@ export default function AgendaPage() {
   ]
 
   const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`
-  const user = JSON.parse(localStorage.getItem('user') || '{}')
+  const user = useAuthStore((state) => state.user) || ({} as any)
 
   useEffect(() => {
     fetchAgenda(dateStr)

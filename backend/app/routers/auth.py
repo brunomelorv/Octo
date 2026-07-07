@@ -1,7 +1,7 @@
 import sqlite3
 import re
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -22,7 +22,7 @@ from app.services.auth_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -47,8 +47,21 @@ def _validate_password_strength(password: str) -> None:
         )
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> UserResponse:
-    token = credentials.credentials
+async def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> UserResponse:
+    token = request.cookies.get("token")
+    if not token and credentials:
+        token = credentials.credentials
+        
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Não autenticado. Token ausente.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
     user = await get_current_user_from_token(token)
     if not user:
         raise HTTPException(
@@ -74,7 +87,7 @@ async def require_user_manager(current_user: UserResponse = Depends(get_current_
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
-async def login(request: Request, credentials: UserLogin):
+async def login(request: Request, credentials: UserLogin, response: Response):
     user = await authenticate_user(credentials.email, credentials.password)
     if not user:
         raise HTTPException(
@@ -88,11 +101,38 @@ async def login(request: Request, credentials: UserLogin):
     
     expires_in_seconds = ACCESS_TOKEN_EXPIRE_HOURS * 3600
     
+    is_localhost = request.url.hostname in ("localhost", "127.0.0.1")
+    cookie_secure = False if is_localhost else True
+    
+    response.set_cookie(
+        key="token",
+        value=access_token,
+        httponly=True,
+        secure=cookie_secure,
+        samesite="lax",
+        max_age=expires_in_seconds,
+        path="/",
+    )
+    
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
         expires_in=expires_in_seconds
     )
+
+@router.post("/logout")
+async def logout(request: Request, response: Response):
+    is_localhost = request.url.hostname in ("localhost", "127.0.0.1")
+    cookie_secure = False if is_localhost else True
+    
+    response.delete_cookie(
+        key="token",
+        httponly=True,
+        secure=cookie_secure,
+        samesite="lax",
+        path="/",
+    )
+    return {"message": "Sessão encerrada com sucesso"}
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: UserResponse = Depends(get_current_user)):
