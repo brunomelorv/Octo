@@ -1,0 +1,22 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+
+# Build output (será gerado dentro do Docker)
+dist/
+
+# Environment files
+.env
+.env.*
+
+# Test artifacts
+e2e/
+playwright-report/
+test-results/
+playwright.config.ts
+
+# Editor / OS
+.vscode/
+.idea/
+*.suo
+*.DS_Store

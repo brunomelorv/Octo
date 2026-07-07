@@ -16,6 +16,7 @@ import ConfiguracoesPage from './pages/ConfiguracoesPage'
 import PersonalizacaoPage from './pages/PersonalizacaoPage'
 import DistribuicaoLeadsPage from './pages/DistribuicaoLeadsPage'
 import CampanhasPage from './pages/CampanhasPage'
+import BugReportsPage from './pages/BugReportsPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 import { useConfigStore } from './store/configStore'
@@ -79,6 +80,7 @@ export default function App() {
         <Route path="/configuracoes" element={<ConfiguracoesPage />} />
         <Route path="/personalizacao" element={<PersonalizacaoPage />} />
         <Route path="/distribuicao-leads" element={<DistribuicaoLeadsPage />} />
+        <Route path="/bug-reports" element={<BugReportsPage />} />
       </Route>
 
       {/* Fallback 404 Route */}

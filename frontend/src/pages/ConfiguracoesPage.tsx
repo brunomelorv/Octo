@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Settings, Save, ShieldAlert } from 'lucide-react'
+import { Settings, Save, ShieldAlert, Key, Eye, EyeOff } from 'lucide-react'
 import api from '../services/api'
+import { useAuthStore } from '../store/authStore'
 
 interface PermissionsData {
   roles: Record<string, string[]>
@@ -40,9 +41,13 @@ export default function ConfiguracoesPage() {
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<'roles' | 'users'>('roles')
+  const [activeTab, setActiveTab] = useState<'roles' | 'users' | 'integrations'>('roles')
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null)
 
+  const { user: currentUser } = useAuthStore()
+  const [openaiKey, setOpenaiKey] = useState('')
+  const [isSavingKey, setIsSavingKey] = useState(false)
+  const [showKey, setShowKey] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -51,12 +56,22 @@ export default function ConfiguracoesPage() {
   const fetchData = async () => {
     setIsLoading(true)
     try {
-      const [permRes, usersRes] = await Promise.all([
+      const isHeadOrMaster = currentUser?.role === 'master' || currentUser?.role === 'head'
+      const promises: Promise<any>[] = [
         api.get('/settings/permissions'),
         api.get('/auth/users')
-      ])
-      setPermissions(permRes.data)
-      setUsers(usersRes.data)
+      ]
+      if (isHeadOrMaster) {
+        promises.push(api.get('/settings/openai-key'))
+      }
+
+      const results = await Promise.all(promises)
+      setPermissions(results[0].data)
+      setUsers(results[1].data)
+      
+      if (isHeadOrMaster && results[2]) {
+        setOpenaiKey(results[2].data.api_key || '')
+      }
     } catch (err) {
       console.error('Failed to fetch data:', err)
       setMessage({ text: 'Erro ao carregar configurações', type: 'error' })
@@ -78,6 +93,21 @@ export default function ConfiguracoesPage() {
       setMessage({ text: 'Erro ao salvar configurações', type: 'error' })
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleSaveOpenAIKey = async () => {
+    setIsSavingKey(true)
+    setMessage(null)
+    try {
+      await api.put('/settings/openai-key', { api_key: openaiKey })
+      setMessage({ text: 'Chave OpenAI salva com sucesso!', type: 'success' })
+      setTimeout(() => setMessage(null), 3000)
+    } catch (err) {
+      console.error('Failed to save OpenAI API Key:', err)
+      setMessage({ text: 'Erro ao salvar chave OpenAI', type: 'error' })
+    } finally {
+      setIsSavingKey(false)
     }
   }
 
@@ -135,14 +165,16 @@ export default function ConfiguracoesPage() {
             Gerencie quem pode visualizar cada aba da plataforma, por nível de acesso (Role) ou especificamente por Usuário.
           </p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
-        >
-          <Save className="w-4 h-4" />
-          {isSaving ? 'Salvando...' : 'Salvar Alterações'}
-        </button>
+        {activeTab !== 'integrations' && (
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+          </button>
+        )}
       </div>
 
       {message && (
@@ -165,6 +197,14 @@ export default function ConfiguracoesPage() {
           >
             Acesso por Usuário
           </button>
+          {(currentUser?.role === 'master' || currentUser?.role === 'head') && (
+            <button
+              className={`flex-1 py-3 px-4 text-sm font-medium text-center transition-colors ${activeTab === 'integrations' ? 'bg-[var(--background)] text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--background)]'}`}
+              onClick={() => setActiveTab('integrations')}
+            >
+              Integrações (API Keys)
+            </button>
+          )}
         </div>
 
         <div className="p-6">
@@ -280,6 +320,60 @@ export default function ConfiguracoesPage() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+          
+          {activeTab === 'integrations' && (
+            <div className="space-y-6 max-w-2xl">
+              <div className="bg-[var(--surface-raised)] border border-[var(--border)] p-6 rounded-lg space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-[var(--accent)] rounded-lg">
+                    <Key className="w-5 h-5 stroke-[1.5]" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sm text-[var(--text-primary)]">OpenAI API Key</h3>
+                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                      Chave usada para gerar insights automáticos e resumos sobre as campanhas.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                    Chave de API OpenAI
+                  </label>
+                  <div className="relative flex rounded-md shadow-sm">
+                    <input
+                      type={showKey ? 'text' : 'password'}
+                      className="w-full bg-[var(--surface)] border border-[var(--border)] px-3 py-2 rounded-lg text-xs placeholder-[var(--text-tertiary)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors pr-10"
+                      placeholder="sk-proj-..."
+                      value={openaiKey}
+                      onChange={(e) => setOpenaiKey(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowKey(!showKey)}
+                      className="absolute right-3 top-2.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    >
+                      {showKey ? <EyeOff className="w-4 h-4 stroke-[1.5]" /> : <Eye className="w-4 h-4 stroke-[1.5]" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                    Sua chave é armazenada com segurança no banco de dados local e usada exclusivamente para as requisições de insights.
+                  </p>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={handleSaveOpenAIKey}
+                    disabled={isSavingKey}
+                    className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    {isSavingKey ? 'Salvando...' : 'Salvar Chave OpenAI'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

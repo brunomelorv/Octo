@@ -65,19 +65,8 @@ def get_users_dict(include_default: bool = True) -> dict:
     """Legacy .env user loader used only for migration/fallback compatibility."""
     users_raw = os.getenv("USERS_JSON")
     if not users_raw:
-        if not include_default:
-            return {}
-        # Provide a default fallback user for convenience
-        default_admin_password_hash = hash_password("admin123")
-        return {
-            "admin@example.com": {
-                "id": "1",
-                "email": "admin@example.com",
-                "name": "Administrador",
-                "password": default_admin_password_hash,
-                "role": "master"
-            }
-        }
+        # No legacy users to migrate — this is expected in fresh deployments.
+        return {}
     try:
         data = json.loads(users_raw)
         user_dict = {}
@@ -101,19 +90,13 @@ def get_users_dict(include_default: bool = True) -> dict:
             raise ValueError("USERS_JSON format must be a list or dict")
         return user_dict
     except Exception as e:
-        # In case parsing fails
         import logging
         logging.getLogger("auth_service").error(f"Error parsing USERS_JSON: {e}")
-        default_admin_password_hash = hash_password("admin123")
-        return {
-            "admin@example.com": {
-                "id": "1",
-                "email": "admin@example.com",
-                "name": "Administrador",
-                "password": default_admin_password_hash,
-                "role": "master"
-            }
-        }
+        # Do NOT fall back to a default admin account — fail loudly.
+        raise RuntimeError(
+            f"USERS_JSON está configurado mas não pôde ser lido: {e}. "
+            "Corrija a variável de ambiente antes de continuar."
+        )
 
 async def init_users_table_and_migrate() -> None:
     db = await get_db()

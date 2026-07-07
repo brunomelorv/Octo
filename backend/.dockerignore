@@ -1,0 +1,29 @@
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment files (nunca incluir no build)
+.env
+.env.*
+
+# Banco de dados local (o DB real vem do volume ./Database)
+*.db
+*.sqlite
+*.sqlite3
+app/lead_analytics.db
+
+# Logs
+*.log
+
+# Test artifacts
+tests/
+conftest.py

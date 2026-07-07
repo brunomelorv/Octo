@@ -1,17 +1,49 @@
 import { useRef, useState } from 'react'
 import type { FormEvent, ChangeEvent } from 'react'
-import { Outlet } from 'react-router-dom'
-import { ShieldAlert, KeyRound, Camera, Upload } from 'lucide-react'
+import { Outlet, useLocation } from 'react-router-dom'
+import { ShieldAlert, KeyRound, Camera, Upload, Bug } from 'lucide-react'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import { useAuthStore } from '../../store/authStore'
 import { authService } from '../../services/auth'
+import api from '../../services/api'
 
 export default function Layout() {
   const user = useAuthStore((state) => state.user)
   const setAuth = useAuthStore((state) => state.setAuth)
   const token = useAuthStore((state) => state.token)
   const permissions = useAuthStore((state) => state.permissions)
+
+  // Bug reporting states
+  const location = useLocation()
+  const [showBugModal, setShowBugModal] = useState(false)
+  const [bugTitle, setBugTitle] = useState('')
+  const [bugDescription, setBugDescription] = useState('')
+  const [includeLogs, setIncludeLogs] = useState(true)
+  const [submittingBug, setSubmittingBug] = useState(false)
+
+  const handleReportBug = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!bugTitle.trim() || !bugDescription.trim()) return
+    setSubmittingBug(true)
+    const currentPage = location.pathname + location.search
+    try {
+      await api.post('/bug-reports/', {
+        title: bugTitle,
+        description: `[Página: ${currentPage}]\n\n${bugDescription}`,
+        include_logs: includeLogs
+      })
+      alert('Reporte de erro enviado com sucesso!')
+      setShowBugModal(false)
+      setBugTitle('')
+      setBugDescription('')
+    } catch (err) {
+      console.error(err)
+      alert('Erro ao enviar reporte de erro.')
+    } finally {
+      setSubmittingBug(false)
+    }
+  }
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -240,6 +272,112 @@ export default function Layout() {
           </div>
         </main>
       </div>
+      {/* Floating Bug Report button (FAB) - only for Master role */}
+      {user?.role === 'master' && (
+        <button
+          onClick={() => setShowBugModal(true)}
+          className="fixed bottom-6 right-6 z-45 bg-red-600 hover:bg-red-700 text-white p-3 rounded-full shadow-2xl flex items-center justify-center gap-1.5 transition-all duration-200 hover:scale-105 active:scale-95 group"
+          title="Reportar erro nesta página"
+        >
+          <Bug className="w-5 h-5 animate-pulse" />
+          <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 ease-in-out font-bold text-xs whitespace-nowrap">
+            Reportar Erro
+          </span>
+        </button>
+      )}
+
+      {/* Floating Bug Report Modal */}
+      {showBugModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-[var(--border)] bg-[var(--surface-raised)] flex justify-between items-center">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+                  <Bug className="w-4 h-4 text-red-500" />
+                  Reportar Erro no Sistema
+                </h3>
+                <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                  Preencha os detalhes do problema. A página atual será registrada automaticamente.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowBugModal(false)}
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-1.5 rounded-lg hover:bg-[var(--surface-raised)]"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleReportBug}>
+              <div className="p-4 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-[var(--text-secondary)]">Página Afetada (Detectada)</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={location.pathname + location.search}
+                    className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-xs p-2.5 rounded-lg text-[var(--text-secondary)] opacity-70 cursor-not-allowed"
+                  />
+                </div>
+                
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-[var(--text-secondary)]">Título do Erro</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Botão de geração travado ou erro na tabela"
+                    value={bugTitle}
+                    onChange={(e) => setBugTitle(e.target.value)}
+                    className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-xs p-2.5 rounded-lg focus:outline-none focus:border-[var(--accent)] text-[var(--text-primary)]"
+                  />
+                </div>
+                
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-[var(--text-secondary)]">Descrição Detalhada</label>
+                  <textarea
+                    required
+                    rows={4}
+                    placeholder="O que aconteceu? Descreva os passos para reproduzir o problema..."
+                    value={bugDescription}
+                    onChange={(e) => setBugDescription(e.target.value)}
+                    className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-xs p-2.5 rounded-lg focus:outline-none focus:border-[var(--accent)] text-[var(--text-primary)] resize-none"
+                  />
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="layout-include-logs"
+                    checked={includeLogs}
+                    onChange={(e) => setIncludeLogs(e.target.checked)}
+                    className="rounded text-[var(--accent)] border-[var(--border)] focus:ring-[var(--accent)]"
+                  />
+                  <label htmlFor="layout-include-logs" className="text-xs font-medium text-[var(--text-secondary)] cursor-pointer select-none">
+                    Anexar automaticamente os logs de diagnóstico do sistema (100 linhas)
+                  </label>
+                </div>
+              </div>
+              
+              <div className="p-3 border-t border-[var(--border)] bg-[var(--surface-raised)] flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBugModal(false)}
+                  className="px-3 py-1.5 border border-[var(--border)] hover:bg-[var(--surface)] rounded-lg text-xs font-semibold transition-colors text-[var(--text-secondary)]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingBug}
+                  className="px-3 py-1.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  {submittingBug ? 'Enviando...' : 'Enviar Reporte'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

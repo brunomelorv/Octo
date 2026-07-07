@@ -1,4 +1,5 @@
 import sqlite3
+import re
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -24,6 +25,27 @@ router = APIRouter()
 security = HTTPBearer()
 
 limiter = Limiter(key_func=get_remote_address)
+
+
+def _validate_password_strength(password: str) -> None:
+    """Enforce minimum password policy: 12+ chars with complexity."""
+    errors = []
+    if len(password) < 12:
+        errors.append("pelo menos 12 caracteres")
+    if not re.search(r"[A-Z]", password):
+        errors.append("uma letra maiúscula")
+    if not re.search(r"[a-z]", password):
+        errors.append("uma letra minúscula")
+    if not re.search(r"\d", password):
+        errors.append("um número")
+    if not re.search(r"[^A-Za-z0-9]", password):
+        errors.append("um caractere especial (!@#$%^&*...)")
+    if errors:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A senha deve conter: " + ", ".join(errors) + ".",
+        )
+
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> UserResponse:
     token = credentials.credentials
@@ -81,11 +103,7 @@ async def change_password(
     data: PasswordChange,
     current_user: UserResponse = Depends(get_current_user),
 ):
-    if len(data.new_password) < 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A nova senha deve ter pelo menos 6 caracteres",
-        )
+    _validate_password_strength(data.new_password)
     changed = await change_own_password(
         email=current_user.email,
         current_password=data.current_password,
@@ -97,6 +115,7 @@ async def change_password(
             detail="Senha atual incorreta",
         )
     return {"message": "Senha atualizada com sucesso"}
+
 
 class AvatarUpdate(BaseModel):
     avatar_base64: str
@@ -114,6 +133,7 @@ async def get_users(_: UserResponse = Depends(require_user_manager)):
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def post_user(data: UserCreate, _: UserResponse = Depends(require_user_manager)):
+    _validate_password_strength(data.password)
     try:
         return await create_user(
             email=data.email.strip().lower(),

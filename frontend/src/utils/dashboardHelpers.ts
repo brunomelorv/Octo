@@ -1,4 +1,5 @@
 export interface Lead {
+  Nome?: string | null
   Campanha: string
   Plataforma: string
   Região: string
@@ -76,6 +77,7 @@ export interface AggregatedDashboardData {
     semInteresseDesq: number
     qualificadoSemAgenda: number
     agendouReuniao: number
+    inconclusivo: number
   }
   motivos: {
     semLigacao: number
@@ -87,6 +89,7 @@ export interface AggregatedDashboardData {
     foraPerfil: number
     leadHostil: number
     qualificadoAgendou: number
+    inconclusivo: number
   }
   duracao: {
     media: string
@@ -143,6 +146,9 @@ function getMedian(values: number[]): number {
 }
 
 // Function to aggregate data based on filtered leads and calls
+// SOURCE OF TRUTH: all data comes exclusively from drag-and-drop uploaded files
+// (leads_facebook/*.csv and chamadas_pitchyes/*.xlsx) processed by build_database.py.
+// No Excel data from Windows folders or legacy sources is used.
 export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboardData {
   let totalLeads = 0
   let contatos = 0
@@ -159,6 +165,7 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
   }
 
   // Build a map of phone -> earliest call date for lead time computation
+  // Only uses calls from the filtered/drag-and-drop set
   const earliestCallByPhone: Record<string, string> = {}
   calls.forEach((call) => {
     const phone = call['Tel Meta']
@@ -180,7 +187,8 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
     aguardandoRetorno: 0,
     semInteresseDesq: 0,
     qualificadoSemAgenda: 0,
-    agendouReuniao: 0
+    agendouReuniao: 0,
+    inconclusivo: 0
   }
 
   const motivos = {
@@ -192,7 +200,8 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
     recusaDireta: 0,
     foraPerfil: 0,
     leadHostil: 0,
-    qualificadoAgendou: 0
+    qualificadoAgendou: 0,
+    inconclusivo: 0
   }
 
   leads.forEach((lead) => {
@@ -229,17 +238,26 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
       }
     }
 
-    const retorno = lead['houve retornow']
-    if (retorno === 'Positivo') contatos++
-
-    // Lead time calculation
+    const classif = lead['Chamada - Classificação']
+    const subcat = lead['Chamada - Subcategoria do Motivo']
+    const dur = lead['Chamada - Duração (segundos)']
+    const score = lead['Chamada - Qualidade (Score)']
     const phone = lead.phone
+
+    // SOURCE OF TRUTH: isSemLigacao is ONLY true when the backend classification says
+    // "Sem Ligação", meaning the lead phone was NOT found in any drag-and-drop call file.
+    // We do NOT use the legacy 'houve retornow' field which conflates multiple categories.
+    const isSemLigacao = classif === 'Sem Ligação'
+
+    // "Contato efetivo" = lead had a real conversation (not voicemail, not unanswered call)
+    const isContatoEfetivo = !isSemLigacao && classif !== 'Caixa Postal / Não Atendido'
+    if (isContatoEfetivo) contatos++
+
+    // Lead time: only for leads whose phone has calls in the filtered (drag-and-drop) set
     if (phone && criaVal && earliestCallByPhone[phone]) {
       try {
-        // criaVal is YYYY-MM-DD from backend's parse_date_to_iso
         const leadCreatedDate = new Date(criaVal + 'T00:00:00')
         const firstCallDateStr = earliestCallByPhone[phone]
-        // Replace space with T for proper ISO parsing (e.g., '2026-06-25 11:14:50' -> '2026-06-25T11:14:50')
         const normalizedCallDate = firstCallDateStr.replace(' ', 'T')
         const firstCallDate = new Date(normalizedCallDate.includes('T') ? normalizedCallDate : normalizedCallDate + 'T00:00:00')
         if (!isNaN(leadCreatedDate.getTime()) && !isNaN(firstCallDate.getTime()) && firstCallDate >= leadCreatedDate) {
@@ -250,11 +268,6 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
         // skip leads where dates can't be parsed
       }
     }
-
-    const classif = lead['Chamada - Classificação']
-    const subcat = lead['Chamada - Subcategoria do Motivo']
-    const dur = lead['Chamada - Duração (segundos)']
-    const score = lead['Chamada - Qualidade (Score)']
 
     if (dur !== null && dur !== undefined) {
       const durVal = parseFloat(dur as any)
@@ -269,8 +282,6 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
       }
     }
 
-    const isSemLigacao = classif === 'Sem Ligação' || retorno === 'Negativo'
-
     if (reg) {
       if (isSemLigacao) regionCounts[reg].semLigacao++
       if (classif === 'Agendou Reunião') regionCounts[reg].agendouReuniao++
@@ -284,39 +295,52 @@ export function aggregateData(leads: Lead[], calls: Call[]): AggregatedDashboard
       if (classif === 'Agendou Reunião') campaignsDetails[camp].agendouReuniao++
     }
 
+    // ─── FUNIL (mutually exclusive — each lead falls into exactly ONE bucket) ──
+    // Each lead falls into exactly ONE category. Priority: best outcomes first.
     funnel.total++
+
     if (isSemLigacao) {
+      // Lead phone never appeared in any drag-and-drop call file
       funnel.semLigacao++
+    } else if (classif === 'Agendou Reunião') {
+      funnel.agendouReuniao++
+    } else if (classif === 'Retorno Agendado') {
+      funnel.aguardandoRetorno++
+    } else if (classif === 'Lead Qualificado') {
+      funnel.qualificadoSemAgenda++
+    } else if (classif === 'Contato Inconclusivo') {
+      funnel.inconclusivo++
+    } else if (classif === 'Sem Interesse' || classif === 'Lead Desqualificado') {
+      funnel.semInteresseDesq++
+    } else if (classif === 'Caixa Postal / Não Atendido') {
+      if (subcat === 'Ligação Curta / Sem Diálogo') {
+        funnel.ligacaoCurta++
+      } else {
+        funnel.caixaPostal++
+      }
+    } else if (classif === 'Sem Contato Efetivo') {
+      if (subcat === 'Pediu para Ligar Depois') {
+        funnel.pediuLigarDepois++
+      } else {
+        funnel.avaliandoInternamente++
+      }
     } else {
-      if (classif === 'Caixa Postal / Não Atendido') funnel.caixaPostal++
-      if (subcat === 'Ligação Curta / Sem Diálogo') funnel.ligacaoCurta++
-      if (classif === 'Sem Ligação') funnel.semLigacao++
-      if (subcat === 'Pediu para Ligar Depois') funnel.pediuLigarDepois++
-      if (subcat === 'Avaliando Internamente') funnel.avaliandoInternamente++
-      if (subcat === 'Aguardando Retorno do Lead') funnel.aguardandoRetorno++
-
-      const isSemInteresseDesq =
-        classif === 'Sem Interesse' ||
-        classif === 'Lead Desqualificado' ||
-        subcat === 'Recusa Direta / Sem Interesse' ||
-        subcat === 'Fora do Perfil de Cliente Ideal'
-      if (isSemInteresseDesq) funnel.semInteresseDesq++
-
-      if (classif === 'Lead Qualificado') funnel.qualificadoSemAgenda++
-      if (classif === 'Agendou Reunião') funnel.agendouReuniao++
+      // Catch-all for any other classification that has a call
+      funnel.avaliandoInternamente++
     }
 
-    // Motivos counts
+    // ─── MOTIVOS (additive — a lead can appear in multiple sub-categories) ────
     if (isSemLigacao) {
       motivos.semLigacao++
     } else {
-      if (classif === 'Caixa Postal / Não Atendido') motivos.caixaPostal++
+      if (classif === 'Caixa Postal / Não Atendido' && subcat !== 'Ligação Curta / Sem Diálogo') motivos.caixaPostal++
       if (subcat === 'Ligação Curta / Sem Diálogo') motivos.ligacaoCurta++
       if (subcat === 'Pediu para Ligar Depois') motivos.pediuLigarDepois++
       if (subcat === 'Avaliando Internamente') motivos.avaliandoInternamente++
       if (subcat === 'Recusa Direta / Sem Interesse') motivos.recusaDireta++
       if (subcat === 'Fora do Perfil de Cliente Ideal') motivos.foraPerfil++
       if (subcat === 'Lead Hostil / Irritado') motivos.leadHostil++
+      if (classif === 'Contato Inconclusivo') motivos.inconclusivo++
       if (classif === 'Lead Qualificado' || classif === 'Agendou Reunião' || classif === 'Retorno Agendado') {
         motivos.qualificadoAgendou++
       }

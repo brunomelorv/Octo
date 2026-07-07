@@ -1,9 +1,4 @@
-import logging
-
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, APIRouter, Request
-
+import os
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter, Request
@@ -20,6 +15,7 @@ from app.routers.negocios import router as negocios_router
 from app.routers.agenda import router as agenda_router
 from app.routers.settings import router as settings_router
 from app.routers.upload import router as upload_router
+from app.routers.bug_reports import router as bug_reports_router
 
 # Configure logging
 logging.basicConfig(
@@ -27,6 +23,9 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("main")
+
+from app.services.log_service import memory_log_handler
+logging.getLogger().addHandler(memory_log_handler)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,8 +35,10 @@ async def lifespan(app: FastAPI):
         from app.services.database import query
         from app.services.auth_service import init_users_table_and_migrate
         from app.services.settings_service import init_settings_table
+        from app.services.bug_report_service import init_bug_reports_table
         await init_users_table_and_migrate()
         await init_settings_table()
+        await init_bug_reports_table()
 
         await query("""
         CREATE TABLE IF NOT EXISTS negocios (
@@ -109,11 +110,17 @@ async def lifespan(app: FastAPI):
     # Shutdown log
     logger.info("Shutting down Lead Analytics API...")
 
+_debug_mode = os.getenv("DEBUG", "False").lower() == "true"
+
 app = FastAPI(
     title="Lead Analytics API",
     description="Backend API for Lead Analytics Dashboard",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    # Disable interactive docs in production
+    docs_url="/docs" if _debug_mode else None,
+    redoc_url="/redoc" if _debug_mode else None,
+    openapi_url="/openapi.json" if _debug_mode else None,
 )
 
 # Rate limiter
@@ -137,7 +144,6 @@ _default_origins = [
     "http://127.0.0.1:5173",
 ]
 
-import os
 _env_origins = os.getenv("CORS_ORIGINS")
 origins = [o.strip() for o in _env_origins.split(",") if o.strip()] if _env_origins else _default_origins
 
@@ -188,3 +194,4 @@ app.include_router(negocios_router, prefix="/api/negocios", tags=["negocios"])
 app.include_router(agenda_router, prefix="/api/agenda", tags=["agenda"])
 app.include_router(settings_router, prefix="/api/settings", tags=["settings"])
 app.include_router(upload_router, prefix="/api/upload", tags=["upload"])
+app.include_router(bug_reports_router, prefix="/api", tags=["bug-reports"])

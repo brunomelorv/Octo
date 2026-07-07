@@ -155,3 +155,8 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Database files
+*.db
+*.sqlite
+

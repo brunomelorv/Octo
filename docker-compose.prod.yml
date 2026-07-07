@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    expose:
+      - "8000"
+    env_file:
+      - .env
+    environment:
+      - DB_PATH=/app/Database/leads.db
+      - FACEBOOK_LEADS_DIR=/app/Database/leads_facebook
+      - PITCHYES_CALLS_DIR=/app/Database/chamadas_pitchyes
+      - SCRIPT_PATH=/app/Database/build_database.py
+      - BACKUP_DIR=/app/Database/backups
+      - BACKUP_KEEP_DAYS=30
+    volumes:
+      - ./Database:/app/Database
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Certbot SSL certificates (gerados pelo script de setup)
+      - ./ssl/certs:/etc/nginx/ssl:ro
+      - ./ssl/nginx-ssl.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Backup diário do SQLite às 02:00 UTC
+  backup:
+    image: python:3.11-alpine
+    volumes:
+      - ./Database:/app/Database
+    environment:
+      - DB_PATH=/app/Database/leads.db
+      - BACKUP_DIR=/app/Database/backups
+      - BACKUP_KEEP_DAYS=30
+    entrypoint: >
+      sh -c "
+        echo '0 2 * * * python /app/Database/backup_db.py >> /var/log/backup.log 2>&1' | crontab - &&
+        crond -f -l 8
+      "
+    restart: unless-stopped

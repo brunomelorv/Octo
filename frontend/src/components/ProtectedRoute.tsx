@@ -8,6 +8,7 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const token = useAuthStore((state) => state.token)
+  const user = useAuthStore((state) => state.user)
   const permissions = useAuthStore((state) => state.permissions)
   const location = useLocation()
 
@@ -19,7 +20,9 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const pageId = path ? path.replace('-', '_') : ''
 
   if (permissions && permissions.length > 0 && pageId && pageId !== 'login') {
-    if (!permissions.includes(pageId)) {
+    if (pageId === 'bug_reports' && user?.role === 'master') {
+      // Permitir master acessar Central de Bugs
+    } else if (!permissions.includes(pageId)) {
       return <Navigate to="/dashboard" replace />
     }
   }

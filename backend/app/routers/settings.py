@@ -109,3 +109,24 @@ async def fetch_custom_tags():
 async def save_custom_tags(data: CustomTagsData, current_user: UserResponse = Depends(require_user_manager)):
     await update_settings("custom_tags", data.model_dump())
     return data
+
+class OpenAIKeyData(BaseModel):
+    api_key: str = ""
+
+async def require_head_or_master(current_user: UserResponse = Depends(get_current_user)) -> UserResponse:
+    if current_user.role not in ("master", "head"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Apenas Master e Head podem gerenciar a chave de API da OpenAI.",
+        )
+    return current_user
+
+@router.get("/openai-key", response_model=OpenAIKeyData)
+async def fetch_openai_key(current_user: UserResponse = Depends(require_head_or_master)):
+    data = await get_settings("openai_api_key")
+    return OpenAIKeyData(api_key=data.get("api_key", ""))
+
+@router.put("/openai-key", response_model=OpenAIKeyData)
+async def save_openai_key(data: OpenAIKeyData, current_user: UserResponse = Depends(require_head_or_master)):
+    await update_settings("openai_api_key", data.model_dump())
+    return data

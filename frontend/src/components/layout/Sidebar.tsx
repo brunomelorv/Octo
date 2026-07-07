@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   Settings,
   Palette,
+  Bug,
   ChevronDown,
   ChevronRight,
   Megaphone,
@@ -118,9 +119,18 @@ export default function Sidebar() {
       id: 'personalizacao',
       icon: <Palette className="h-4 w-4 stroke-[1.5]" />,
     },
+    {
+      name: 'Central de Bugs',
+      path: '/bug-reports',
+      id: 'bug_reports',
+      icon: <Bug className="h-4 w-4 stroke-[1.5]" />,
+    },
   ]
 
   const filterItem = (item: any) => {
+    if (item.path === '/bug-reports') {
+      return user?.role === 'master'
+    }
     const pageId = item.id || item.path.replace('/', '').replace('-', '_')
     if (permissions && permissions.length > 0) {
       return permissions.includes(pageId)

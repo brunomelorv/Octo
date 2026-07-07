@@ -10,11 +10,18 @@ services:
     env_file:
       - .env
     environment:
+      - DB_PATH=/app/Database/leads.db
       - FACEBOOK_LEADS_DIR=/app/Database/leads_facebook
       - PITCHYES_CALLS_DIR=/app/Database/chamadas_pitchyes
       - SCRIPT_PATH=/app/Database/build_database.py
     volumes:
       - ./Database:/app/Database
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   frontend:
     build:
@@ -23,5 +30,5 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - backend
-
+      backend:
+        condition: service_healthy

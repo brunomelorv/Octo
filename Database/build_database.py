@@ -11,6 +11,16 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(script_dir)
 load_dotenv(os.path.join(parent_dir, '.env'))
 
+def _resolve_env_path(env_var: str, default: str) -> str:
+    """Returns the env var as an absolute path.
+    If relative, resolves it relative to the project root (parent_dir)."""
+    val = os.getenv(env_var)
+    if not val:
+        return default
+    if os.path.isabs(val):
+        return val
+    return os.path.normpath(os.path.join(parent_dir, val))
+
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 if hasattr(sys.stderr, 'reconfigure'):
@@ -63,7 +73,7 @@ def map_column(col):
 
 def consolidate_leads(db_conn):
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    source_folder = os.getenv("FACEBOOK_LEADS_DIR", os.path.join(script_dir, "leads_facebook"))
+    source_folder = _resolve_env_path("FACEBOOK_LEADS_DIR", os.path.join(script_dir, "leads_facebook"))
     csv_out_path = os.path.join(script_dir, "leads_consolidated.csv")
     
     print("\n--- Processing Facebook Leads ---")
@@ -199,7 +209,7 @@ def consolidate_leads(db_conn):
 
 def consolidate_calls(db_conn):
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    source_folder = os.getenv("PITCHYES_CALLS_DIR", os.path.join(script_dir, "chamadas_pitchyes"))
+    source_folder = _resolve_env_path("PITCHYES_CALLS_DIR", os.path.join(script_dir, "chamadas_pitchyes"))
     csv_out_path = os.path.join(script_dir, "chamadas_consolidated.csv")
     
     print("\n--- Processing PitchYes Calls ---")

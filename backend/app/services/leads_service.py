@@ -273,7 +273,7 @@ def classify_call_dynamic(call):
         
     # Default fallbacks
     if dur >= 30:
-        return "Lead Qualificado", "Qualificado / Agendou reunião", 6
+        return "Contato Inconclusivo", "Contato Inconclusivo", 4
     elif dur > 0:
         return "Sem Contato Efetivo", "Avaliando Internamente", 4
         
@@ -512,6 +512,7 @@ async def get_dashboard_data(user=None) -> dict:
                 motivo_counts["qualificadoAgendou"] += 1
                 
         leads_raw.append({
+            "Nome": lead.get("full_name"),
             "Campanha": camp,
             "Plataforma": plat,
             "Região": reg,
