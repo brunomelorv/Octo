@@ -35,7 +35,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js'
-import { Line, Bar } from 'react-chartjs-2'
+import { Line } from 'react-chartjs-2'
 
 // Register ChartJS plugins
 ChartJS.register(
@@ -369,29 +369,7 @@ export default function DashboardPage() {
   // Chart setup
   const isDark = document.documentElement.classList.contains('dark')
 
-  const campaignsChartData = useMemo(() => {
-    const campaigns = Object.entries(dashboardData.leadsPorCampanha)
-      .sort((a, b) => b[1].total - a[1].total)
-      .slice(0, 10) // Top 10 campaigns
-    
-    return {
-      labels: campaigns.map(c => c[0].length > 20 ? c[0].substring(0, 20) + '...' : c[0]),
-      datasets: [
-        {
-          label: 'Leads',
-          data: campaigns.map(c => c[1].total),
-          backgroundColor: isDark ? 'rgba(59, 130, 246, 0.8)' : 'rgba(59, 130, 246, 0.7)',
-          borderRadius: 4,
-        },
-        {
-          label: 'Agendados',
-          data: campaigns.map(c => c[1].agendouReuniao),
-          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.8)' : 'rgba(16, 185, 129, 0.7)',
-          borderRadius: 4,
-        }
-      ]
-    }
-  }, [dashboardData.leadsPorCampanha, isDark])
+
 
   const leadsVsCallsChartData = useMemo(() => {
     const allDates = new Set<string>()

@@ -15,7 +15,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    if (
+      error.response?.status === 401 ||
+      (error.response?.status === 403 &&
+        error.response?.data?.detail?.includes('desativada'))
+    ) {
       // Don't redirect if we're already on the login page or this IS the login request
       const isLoginRequest = error.config?.url?.includes('/auth/login')
       if (!isLoginRequest) {

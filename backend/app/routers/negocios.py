@@ -123,7 +123,7 @@ async def update_negocio(
             )
             if existing:
                 owner = existing[0].get("usuario_email")
-                if owner and owner != current_user.email:
+                if owner and owner.strip().lower() != current_user.email.strip().lower():
                     raise HTTPException(
                         status_code=403,
                         detail="Você não tem permissão para alterar este negócio."

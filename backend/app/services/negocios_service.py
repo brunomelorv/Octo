@@ -19,13 +19,14 @@ async def get_negocios(campaign_id=None, search=None, user=None, consultant=None
         conditions.append("(l.full_name LIKE ? OR l.phone LIKE ? OR l.email LIKE ? OR l.campaign_name LIKE ? OR l.city LIKE ?)")
         params.extend([s_term, s_term, s_term, s_term, s_term])
         
+    if user and user.get("role") == "consultor":
+        conditions.append("(n.usuario_email = ? OR n.usuario_email IS NULL)")
+        params.append(user["email"])
+        
     if consultant is not None and consultant.strip() != "":
         c_term = consultant.strip()
         conditions.append("(n.usuario_email = ? OR n.usuario_nome = ?)")
         params.extend([c_term, c_term])
-    elif user and user.get("role") == "consultor":
-        conditions.append("(n.usuario_email = ? OR n.usuario_email IS NULL)")
-        params.append(user["email"])
         
     where_clause = ""
     if conditions:
@@ -115,20 +116,27 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
         elif not user_name:
             user_name = user_email.split('@')[0]
         
-    # Check if entry already exists in negocios to get previous stage
-    exists = await query("SELECT etapa FROM negocios WHERE lead_id = ?", (lead_id,))
+    # Check if entry already exists in negocios to get previous stage and owner
+    exists = await query("SELECT etapa, usuario_email, usuario_nome FROM negocios WHERE lead_id = ?", (lead_id,))
     
     if exists:
         etapa_anterior = exists[0]["etapa"]
+        existing_email = exists[0].get("usuario_email")
+        existing_name = exists[0].get("usuario_nome")
+        
+        # Keep existing owner if already assigned to preserve ownership integrity
+        final_email = existing_email if existing_email else user_email
+        final_name = existing_name if existing_name else user_name
+        
         if tags is not None:
             await query(
                 "UPDATE negocios SET etapa = ?, valor = ?, updated_at = ?, usuario_email = ?, usuario_nome = ?, tags = ? WHERE lead_id = ?",
-                (etapa, valor, updated_at, user_email, user_name, tags, lead_id)
+                (etapa, valor, updated_at, final_email, final_name, tags, lead_id)
             )
         else:
             await query(
                 "UPDATE negocios SET etapa = ?, valor = ?, updated_at = ?, usuario_email = ?, usuario_nome = ? WHERE lead_id = ?",
-                (etapa, valor, updated_at, user_email, user_name, lead_id)
+                (etapa, valor, updated_at, final_email, final_name, lead_id)
             )
     else:
         # Determine dynamic previous stage for history accuracy

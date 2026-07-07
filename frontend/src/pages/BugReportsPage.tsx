@@ -9,7 +9,6 @@ import {
   Trash2,
   Plus,
   RefreshCw,
-  FileText,
   Copy,
   AlertCircle
 } from 'lucide-react'

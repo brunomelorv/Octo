@@ -7,6 +7,7 @@ import { usuariosService } from '../services/usuarios'
 import type { Usuario } from '../services/usuarios'
 import type { Lead, LeadWithCalls, Call } from '../types/lead'
 import WhatsAppTemplateSelector from '../components/WhatsAppTemplateSelector'
+import { useAuthStore } from '../store/authStore'
 import {
   Search,
   Filter,
@@ -162,6 +163,7 @@ function classifyCall(call: Call) {
 }
 
 export default function LeadsPage() {
+  const user = useAuthStore((state) => state.user)
   const [leads, setLeads] = useState<Lead[]>([])
   const [totalLeads, setTotalLeads] = useState(0)
   const [page, setPage] = useState(1)
@@ -222,14 +224,19 @@ export default function LeadsPage() {
         console.error('Error fetching campaigns:', err)
       })
 
-    usuariosService.list()
-      .then((data) => {
-        setConsultants(data.filter(u => u.role === 'consultor') || [])
-      })
-      .catch((err) => {
-        console.error('Error fetching consultants:', err)
-      })
-  }, [])
+    const isManager = user && ['master', 'head', 'administrativo'].includes(user.role)
+    if (isManager) {
+      usuariosService.list()
+        .then((data) => {
+          setConsultants(data.filter(u => u.role === 'consultor') || [])
+        })
+        .catch((err) => {
+          console.error('Error fetching consultants:', err)
+        })
+    } else if (user) {
+      setConsultants([user as any])
+    }
+  }, [user])
 
   const fetchLeads = () => {
     setLoading(true)
