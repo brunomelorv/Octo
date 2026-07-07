@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from app.services.database import query
 
-async def get_agenda(date_str: str) -> list[dict]:
+async def get_agenda(date_str: str, user: dict = None) -> list[dict]:
     # date_str is expected to be YYYY-MM-DD
     try:
         target_date = datetime.strptime(date_str, "%Y-%m-%d")
@@ -13,6 +13,19 @@ async def get_agenda(date_str: str) -> list[dict]:
     # Query calls that have scheduled events for the target date
     # Looking for 'agendado para: DD/MM/YY' or similar in resumo_ligacao
     # Since sqlite doesn't have regex, we fetch all that have the date string
+    conditions = [
+        "(c.resumo_ligacao LIKE ? OR c.reuniao_agendada LIKE ? OR c.reuniao_agendada LIKE ?)",
+        "(n.etapa != 'Perdido' OR n.etapa IS NULL)",
+        "(c.resumo_ligacao NOT LIKE '%{lead desqualificado}%' OR c.resumo_ligacao IS NULL)"
+    ]
+    params = [f"%{target_date_formatted}%", f"%{date_str}%", f"%{target_date_formatted}%"]
+
+    if user and user.get("role") == "consultor":
+        conditions.append("(n.usuario_email = ? OR n.usuario_email IS NULL)")
+        params.append(user["email"])
+
+    where_clause = "WHERE " + " AND ".join(conditions)
+
     sql = f"""
     SELECT 
         c.id as chamada_id,
@@ -28,17 +41,11 @@ async def get_agenda(date_str: str) -> list[dict]:
     LEFT JOIN leads l ON c.telefone_normalizado = l.phone
     LEFT JOIN negocios n ON n.lead_id = l.id
     LEFT JOIN agenda_completions ac ON ac.chamada_id = c.id
-    WHERE (
-           c.resumo_ligacao LIKE '%{target_date_formatted}%'
-           OR c.reuniao_agendada LIKE '%{date_str}%'
-           OR c.reuniao_agendada LIKE '%{target_date_formatted}%'
-       )
-       AND (n.etapa != 'Perdido' OR n.etapa IS NULL)
-       AND (c.resumo_ligacao NOT LIKE '%{{lead desqualificado}}%' OR c.resumo_ligacao IS NULL)
+    {where_clause}
     ORDER BY c.data_hora DESC
     """
     
-    rows = await query(sql)
+    rows = await query(sql, tuple(params))
     
     agenda_items = []
     # Deduplicate by phone

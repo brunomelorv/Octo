@@ -101,8 +101,7 @@ async def login(request: Request, credentials: UserLogin, response: Response):
     
     expires_in_seconds = ACCESS_TOKEN_EXPIRE_HOURS * 3600
     
-    is_localhost = request.url.hostname in ("localhost", "127.0.0.1")
-    cookie_secure = False if is_localhost else True
+    cookie_secure = request.url.scheme == "https"
     
     response.set_cookie(
         key="token",
@@ -115,15 +114,13 @@ async def login(request: Request, credentials: UserLogin, response: Response):
     )
     
     return TokenResponse(
-        access_token=access_token,
         token_type="bearer",
         expires_in=expires_in_seconds
     )
 
 @router.post("/logout")
 async def logout(request: Request, response: Response):
-    is_localhost = request.url.hostname in ("localhost", "127.0.0.1")
-    cookie_secure = False if is_localhost else True
+    cookie_secure = request.url.scheme == "https"
     
     response.delete_cookie(
         key="token",

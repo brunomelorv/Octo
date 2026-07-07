@@ -31,7 +31,7 @@ class RescheduleRequest(BaseModel):
 
 @router.get("/")
 async def read_agenda(date: str, current_user: UserResponse = Depends(get_current_user)):
-    return await get_agenda(date)
+    return await get_agenda(date, current_user.model_dump())
 
 @router.post("/comments")
 async def create_agenda_comment(req: CommentRequest, current_user: UserResponse = Depends(get_current_user)):

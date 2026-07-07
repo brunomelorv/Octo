@@ -44,7 +44,7 @@ async def submit_bug_report(
 
         report = await bug_service.create_bug_report(
             user_id=current_user.id,
-            username=current_user.username,
+            username=current_user.name,
             title=data.title,
             description=data.description,
             logs=logs_text

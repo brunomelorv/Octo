@@ -31,7 +31,7 @@ export default function LoginPage() {
         authService.getMyPermissions().catch(() => [])
       ])
       
-      setAuth(user, data.access_token, permissions)
+      setAuth(user, 'session-active', permissions)
       navigate('/dashboard')
     } catch (err: any) {
       if (err.response && err.response.data && err.response.data.detail) {

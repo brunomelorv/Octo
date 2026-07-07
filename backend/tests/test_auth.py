@@ -17,8 +17,9 @@ async def test_login_success(client: AsyncClient):
     })
     assert response.status_code == 200
     data = response.json()
-    assert "access_token" in data
+    assert "access_token" not in data
     assert data["token_type"] == "bearer"
+    assert "token" in response.cookies
     
 @pytest.mark.asyncio
 async def test_login_invalid_password(client: AsyncClient):
@@ -43,13 +44,21 @@ async def test_protected_route_with_token(client: AsyncClient):
         "email": "admin@example.com",
         "password": "admin123"
     })
-    token = login_response.json()["access_token"]
+    assert "token" in login_response.cookies
+    token = login_response.cookies["token"]
     
-    # 2. Access protected route
-    response = await client.get(
-        "/api/auth/me",
-        headers={"Authorization": f"Bearer {token}"}
-    )
+    # 2. Access protected route (using cookie)
+    response = await client.get("/api/auth/me")
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == "admin@example.com"
+
+    # 3. Access protected route (using header to make sure Bearer format works)
+    # We clear the client's cookies for this request by passing cookies={} to test the Header path
+    response_header = await client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+        cookies={}
+    )
+    assert response_header.status_code == 200
+    assert response_header.json()["email"] == "admin@example.com"
