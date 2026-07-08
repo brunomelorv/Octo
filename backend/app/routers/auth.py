@@ -1,6 +1,11 @@
+import os
 import sqlite3
 import re
 import logging
+
+# Cookie security flag — must be True in production (HTTPS only).
+# Set COOKIE_SECURE=false only in local dev environments without HTTPS.
+COOKIE_SECURE: bool = os.getenv("COOKIE_SECURE", "true").lower() == "true"
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from slowapi import Limiter
@@ -101,13 +106,11 @@ async def login(request: Request, credentials: UserLogin, response: Response):
     
     expires_in_seconds = ACCESS_TOKEN_EXPIRE_HOURS * 3600
     
-    cookie_secure = request.url.scheme == "https"
-    
     response.set_cookie(
         key="token",
         value=access_token,
         httponly=True,
-        secure=cookie_secure,
+        secure=COOKIE_SECURE,
         samesite="lax",
         max_age=expires_in_seconds,
         path="/",
@@ -120,12 +123,10 @@ async def login(request: Request, credentials: UserLogin, response: Response):
 
 @router.post("/logout")
 async def logout(request: Request, response: Response):
-    cookie_secure = request.url.scheme == "https"
-    
     response.delete_cookie(
         key="token",
         httponly=True,
-        secure=cookie_secure,
+        secure=COOKIE_SECURE,
         samesite="lax",
         path="/",
     )
