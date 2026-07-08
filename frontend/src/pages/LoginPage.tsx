@@ -24,7 +24,7 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      const data = await authService.login(email, password)
+      await authService.login(email, password)
       
       const [user, permissions] = await Promise.all([
         authService.getMe(),
