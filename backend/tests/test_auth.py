@@ -62,3 +62,36 @@ async def test_protected_route_with_token(client: AsyncClient):
     )
     assert response_header.status_code == 200
     assert response_header.json()["email"] == "admin@example.com"
+
+
+@pytest.mark.asyncio
+async def test_master_user_seeding(app_setup, monkeypatch):
+    """Test that a master user is seeded when the users table is empty."""
+    from app.services.database import get_db
+    from app.services.auth_service import init_users_table_and_migrate, get_user_by_email
+    
+    # 1. Temporarily clear the USERS_JSON so no legacy users are migrated
+    monkeypatch.setenv("USERS_JSON", "")
+    
+    # 2. Configure master user env variables
+    monkeypatch.setenv("MASTER_USER_EMAIL", "test-master@example.com")
+    monkeypatch.setenv("MASTER_USER_PASSWORD", "TestMasterPassword123!")
+    monkeypatch.setenv("MASTER_USER_NAME", "Test Master User")
+    
+    # 3. Truncate users table
+    db = await get_db()
+    try:
+        await db.execute("DELETE FROM users;")
+        await db.commit()
+    finally:
+        await db.close()
+        
+    # 4. Run init/migration
+    await init_users_table_and_migrate()
+    
+    # 5. Check if the master user was created
+    user = await get_user_by_email("test-master@example.com")
+    assert user is not None
+    assert user["name"] == "Test Master User"
+    assert user["role"] == "master"
+

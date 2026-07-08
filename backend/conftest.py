@@ -14,6 +14,7 @@ def setup_test_env(monkeypatch):
     
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("SECRET_KEY", "dummy-secret-key-for-testing")
+    monkeypatch.setenv("COOKIE_SECURE", "false")
     
     # Provide a default admin user via USERS_JSON for auth service migrations
     users_json = '{"admin@example.com": {"password": "admin123", "role": "admin", "name": "Admin"}}'

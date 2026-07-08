@@ -147,6 +147,29 @@ async def init_users_table_and_migrate() -> None:
                 ),
             )
         await db.commit()
+
+        # Check if the users table is empty and we should seed the master user
+        async with db.execute("SELECT COUNT(*) as count FROM users WHERE active = 1") as cursor:
+            row = await cursor.fetchone()
+            user_count = row["count"] if row else 0
+
+        if user_count == 0:
+            master_email = os.getenv("MASTER_USER_EMAIL")
+            master_password = os.getenv("MASTER_USER_PASSWORD")
+            master_name = os.getenv("MASTER_USER_NAME", "Usuario Master")
+            if master_email and master_password:
+                master_email = master_email.strip().lower()
+                master_name = master_name.strip()
+                password_hash = master_password if is_password_hash(master_password) else hash_password(master_password)
+                await db.execute(
+                    """
+                    INSERT INTO users (email, name, password_hash, role, active, must_change_password)
+                    VALUES (?, ?, ?, 'master', 1, 0)
+                    ON CONFLICT(email) DO NOTHING;
+                    """,
+                    (master_email, master_name, password_hash),
+                )
+                await db.commit()
     finally:
         await db.close()
 
