@@ -34,7 +34,7 @@ async def get_negocios(campaign_id=None, search=None, user=None, consultant=None
         
     sql = f"""
     SELECT l.id, l.full_name, l.phone, l.email, l.city, l.campaign_name, l.platform, l.created_time,
-           n.etapa, n.valor, n.updated_at, n.usuario_email, n.usuario_nome, n.tags,
+           n.etapa, n.valor, n.updated_at, n.usuario_email, n.usuario_nome, n.tags, n.loss_reason, n.loss_comment,
            c.data_hora as call_date, 
            c.duracao_segundos as call_duration, 
            c.resumo_ligacao as call_summary, 
@@ -130,13 +130,13 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
         
         if tags is not None:
             await query(
-                "UPDATE negocios SET etapa = ?, valor = ?, updated_at = ?, usuario_email = ?, usuario_nome = ?, tags = ? WHERE lead_id = ?",
-                (etapa, valor, updated_at, final_email, final_name, tags, lead_id)
+                "UPDATE negocios SET etapa = ?, valor = ?, updated_at = ?, usuario_email = ?, usuario_nome = ?, tags = ?, loss_reason = ?, loss_comment = ? WHERE lead_id = ?",
+                (etapa, valor, updated_at, final_email, final_name, tags, loss_reason, loss_comment, lead_id)
             )
         else:
             await query(
-                "UPDATE negocios SET etapa = ?, valor = ?, updated_at = ?, usuario_email = ?, usuario_nome = ? WHERE lead_id = ?",
-                (etapa, valor, updated_at, final_email, final_name, lead_id)
+                "UPDATE negocios SET etapa = ?, valor = ?, updated_at = ?, usuario_email = ?, usuario_nome = ?, loss_reason = ?, loss_comment = ? WHERE lead_id = ?",
+                (etapa, valor, updated_at, final_email, final_name, loss_reason, loss_comment, lead_id)
             )
     else:
         # Determine dynamic previous stage for history accuracy
@@ -160,8 +160,8 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
                     etapa_anterior = "Contatado"
                     
         await query(
-            "INSERT INTO negocios (lead_id, etapa, valor, updated_at, usuario_email, usuario_nome, tags) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (lead_id, etapa, valor, updated_at, user_email, user_name, tags or "")
+            "INSERT INTO negocios (lead_id, etapa, valor, updated_at, usuario_email, usuario_nome, tags, loss_reason, loss_comment) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (lead_id, etapa, valor, updated_at, user_email, user_name, tags or "", loss_reason, loss_comment)
         )
         
     # Insert audit entry into history table

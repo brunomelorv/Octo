@@ -24,8 +24,8 @@ export const agendaService = {
     return response.data
   },
 
-  async rescheduleItem(phone: string, lead_name: string, new_date_str: string, new_time_str: string, user_email: string) {
-    const response = await api.post('/agenda/reschedule', { phone, lead_name, new_date_str, new_time_str, user_email })
+  async rescheduleItem(phone: string, lead_name: string, new_date_str: string, new_time_str: string, user_email: string, comment?: string) {
+    const response = await api.post('/agenda/reschedule', { phone, lead_name, new_date_str, new_time_str, user_email, comment })
     return response.data
   },
 

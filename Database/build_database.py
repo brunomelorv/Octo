@@ -42,6 +42,65 @@ def normalize_phone(phone_val):
     # Otherwise, return it with a plus sign if it's long enough
     return '+' + digits
 
+def parse_scheduled_event(resumo, reuniao_field):
+    if not isinstance(resumo, str):
+        resumo = ""
+    event_type = None
+    date_str = None
+    time_str = None
+
+    if reuniao_field and not pd.isna(reuniao_field) and str(reuniao_field).lower() != 'none' and str(reuniao_field).strip() != '':
+        event_type = "Reunião"
+        date_match = re.search(r"(\d{1,2}/\d{1,2}/\d{2,4})", str(reuniao_field))
+        if date_match:
+            raw_date = date_match.group(1)
+            try:
+                parts = raw_date.split('/')
+                day = int(parts[0])
+                month = int(parts[1])
+                year = int(parts[2])
+                if year < 100:
+                    year += 2000
+                date_str = f"{year:04d}-{month:02d}-{day:02d}"
+            except Exception:
+                pass
+
+    match = re.search(
+        r"(Retorno|Reunião|Tarefa|Chamada)\s+agendad[oa]\s+para:\s+(\d{1,2}/\d{1,2}/\d{2,4})(?:\s+(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?))?",
+        resumo,
+        re.IGNORECASE
+    )
+    if match:
+        if not event_type:
+            event_type = match.group(1).capitalize()
+        raw_date = match.group(2)
+        raw_time = match.group(3)
+        
+        if not date_str:
+            try:
+                parts = raw_date.split('/')
+                day = int(parts[0])
+                month = int(parts[1])
+                year = int(parts[2])
+                if year < 100:
+                    year += 2000
+                date_str = f"{year:04d}-{month:02d}-{day:02d}"
+            except Exception:
+                date_str = raw_date
+            
+        if raw_time:
+            time_str = raw_time.strip()
+            try:
+                from datetime import datetime
+                if 'AM' in time_str.upper() or 'PM' in time_str.upper():
+                    dt_time = datetime.strptime(time_str.upper(), "%I:%M %p")
+                else:
+                    dt_time = datetime.strptime(time_str, "%H:%M")
+                time_str = dt_time.strftime("%H:%M")
+            except Exception:
+                pass
+    return event_type, date_str, time_str
+
 def map_column(col):
     col_lower = col.lower()
     if 'nome' in col_lower:
@@ -262,6 +321,15 @@ def consolidate_calls(db_conn):
     dedup_df = combined_df.drop_duplicates(subset=['nome_contato', 'telefone', 'data_hora']).copy()
     print(f"Calls: read {total_raw_rows} rows, deduplicated to {len(dedup_df)} unique calls.")
     
+    # Extract scheduled event info (structured agenda columns)
+    def _extract_sched(row):
+        resumo = row.get('resumo_ligacao') or ''
+        reuniao = row.get('reuniao_agendada')
+        ev_type, d_str, t_str = parse_scheduled_event(resumo, reuniao)
+        return pd.Series([d_str, t_str, ev_type])
+
+    dedup_df[['data_retorno_agendado', 'horario_retorno_agendado', 'tipo_retorno']] = dedup_df.apply(_extract_sched, axis=1)
+
     # Save to consolidated CSV
     dedup_df.to_csv(csv_out_path, index=False, encoding='utf-8-sig')
     print(f"Saved consolidated CSV to: {csv_out_path}")
@@ -283,7 +351,10 @@ def consolidate_calls(db_conn):
         link_reuniao TEXT,
         anotacoes TEXT,
         tag TEXT,
-        source_file TEXT
+        source_file TEXT,
+        data_retorno_agendado TEXT,
+        horario_retorno_agendado TEXT,
+        tipo_retorno TEXT
     );
     """
     cursor.execute(create_table_sql)
@@ -297,8 +368,9 @@ def consolidate_calls(db_conn):
         nome_contato, telefone, telefone_normalizado, data_hora, 
         duracao_segundos, resumo_ligacao, status_ligacao, 
         link_gravacao, reuniao_agendada, link_reuniao, 
-        anotacoes, tag, source_file
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        anotacoes, tag, source_file,
+        data_retorno_agendado, horario_retorno_agendado, tipo_retorno
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(nome_contato, telefone, data_hora) DO UPDATE SET
         telefone_normalizado = COALESCE(chamadas.telefone_normalizado, excluded.telefone_normalizado),
         duracao_segundos = COALESCE(chamadas.duracao_segundos, excluded.duracao_segundos),
@@ -309,14 +381,18 @@ def consolidate_calls(db_conn):
         link_reuniao = COALESCE(chamadas.link_reuniao, excluded.link_reuniao),
         anotacoes = COALESCE(chamadas.anotacoes, excluded.anotacoes),
         tag = COALESCE(chamadas.tag, excluded.tag),
-        source_file = COALESCE(chamadas.source_file, excluded.source_file)
+        source_file = COALESCE(chamadas.source_file, excluded.source_file),
+        data_retorno_agendado = COALESCE(chamadas.data_retorno_agendado, excluded.data_retorno_agendado),
+        horario_retorno_agendado = COALESCE(chamadas.horario_retorno_agendado, excluded.horario_retorno_agendado),
+        tipo_retorno = COALESCE(chamadas.tipo_retorno, excluded.tipo_retorno)
     """
     
     columns = [
         'nome_contato', 'telefone', 'telefone_normalizado', 'data_hora',
         'duracao_segundos', 'resumo_ligacao', 'status_ligacao',
         'link_gravacao', 'reuniao_agendada', 'link_reuniao',
-        'anotacoes', 'tag', 'source_file'
+        'anotacoes', 'tag', 'source_file',
+        'data_retorno_agendado', 'horario_retorno_agendado', 'tipo_retorno'
     ]
     
     # Ensure all columns exist in the DataFrame (fill with None if missing)
@@ -339,6 +415,8 @@ def consolidate_calls(db_conn):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_chamadas_telefone_normalizado ON chamadas(telefone_normalizado)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_chamadas_data_hora ON chamadas(data_hora)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_chamadas_reuniao_agendada ON chamadas(reuniao_agendada)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_chamadas_data_retorno_agendado ON chamadas(data_retorno_agendado)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_chamadas_tipo_retorno ON chamadas(tipo_retorno)")
     
     return True
 
@@ -539,7 +617,9 @@ def distribute_new_leads(db_conn):
             updated_at TEXT,
             usuario_email TEXT,
             usuario_nome TEXT,
-            tags TEXT
+            tags TEXT,
+            loss_reason TEXT,
+            loss_comment TEXT
         );
         """)
         cursor.execute("""
@@ -667,6 +747,18 @@ def distribute_new_leads(db_conn):
     # 4. Perform Round-Robin assignment
     num_users = len(db_users)
     
+    # Get existing owners for phone numbers to retain ownership
+    cursor.execute("""
+        SELECT DISTINCT l.phone, n.usuario_email, n.usuario_nome
+        FROM negocios n
+        JOIN leads l ON l.id = n.lead_id
+        WHERE l.phone IS NOT NULL AND n.usuario_email IS NOT NULL
+    """)
+    existing_phone_owners = {}
+    for r in cursor.fetchall():
+        if r[0]:
+            existing_phone_owners[r[0]] = (r[1], r[2])
+
     # To make it even more balanced across imports, we start with the user who has the fewest assigned leads.
     # We use case-insensitive email keys to ensure correct lookup and mapping.
     cursor.execute("SELECT usuario_email, count(*) as count FROM negocios WHERE usuario_email IS NOT NULL GROUP BY usuario_email")
@@ -697,19 +789,25 @@ def distribute_new_leads(db_conn):
         has_call = phone is not None and resumo_ligacao is not None
         initial_stage = compute_initial_stage(resumo_ligacao, reuniao_agendada, has_call)
         
-        assigned_user = db_users[user_idx]
+        if phone and phone in existing_phone_owners:
+            assigned_user_email, assigned_user_name = existing_phone_owners[phone]
+            log_message("INFO", f"Lead '{full_name}' ({lead_id}) has phone {phone} already owned by: {assigned_user_name} ({assigned_user_email}). Retaining ownership.")
+        else:
+            assigned_user = db_users[user_idx]
+            assigned_user_email = assigned_user["email"]
+            assigned_user_name = assigned_user["name"]
+            user_idx = (user_idx + 1) % num_users
         
         negocios_data.append((
             lead_id,
             initial_stage,
             0.0,
             updated_at,
-            assigned_user["email"],
-            assigned_user["name"]
+            assigned_user_email,
+            assigned_user_name
         ))
         
-        log_message("INFO", f"Lead '{full_name}' ({lead_id}) -> Assigned to: {assigned_user['name']} ({assigned_user['email']}) | Stage: {initial_stage}")
-        user_idx = (user_idx + 1) % num_users
+        log_message("INFO", f"Lead '{full_name}' ({lead_id}) -> Assigned to: {assigned_user_name} ({assigned_user_email}) | Stage: {initial_stage}")
         
     if negocios_data:
         try:
@@ -743,6 +841,38 @@ def distribute_new_leads(db_conn):
         except Exception as e:
             log_message("ERROR", f"Error inserting audit entries into 'negocios_historico': {e}")
 
+def migrate_database(db_conn):
+    log_message("INFO", "Running Database Migrations...")
+    cursor = db_conn.cursor()
+    
+    # 1. Add new columns in chamadas table if they don't exist
+    chamadas_cols = [
+        ("data_retorno_agendado", "TEXT"),
+        ("horario_retorno_agendado", "TEXT"),
+        ("tipo_retorno", "TEXT")
+    ]
+    for col_name, col_type in chamadas_cols:
+        try:
+            cursor.execute(f"ALTER TABLE chamadas ADD COLUMN {col_name} {col_type}")
+            db_conn.commit()
+            log_message("INFO", f"Column '{col_name}' added to 'chamadas' table.")
+        except sqlite3.OperationalError:
+            pass
+
+    # 2. Add new columns in negocios table if they don't exist
+    negocios_cols = [
+        ("tags", "TEXT"),
+        ("loss_reason", "TEXT"),
+        ("loss_comment", "TEXT")
+    ]
+    for col_name, col_type in negocios_cols:
+        try:
+            cursor.execute(f"ALTER TABLE negocios ADD COLUMN {col_name} {col_type}")
+            db_conn.commit()
+            log_message("INFO", f"Column '{col_name}' added to 'negocios' table.")
+        except sqlite3.OperationalError:
+            pass
+
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(script_dir, "leads.db")
@@ -752,6 +882,8 @@ def main():
     print("====================================================")
     
     conn = sqlite3.connect(db_path)
+    
+    migrate_database(conn)
     
     leads_success = consolidate_leads(conn)
     calls_success = consolidate_calls(conn)

@@ -41,7 +41,10 @@ async def app_setup():
             valor REAL DEFAULT 0.0,
             updated_at TEXT,
             usuario_email TEXT,
-            usuario_nome TEXT
+            usuario_nome TEXT,
+            tags TEXT,
+            loss_reason TEXT,
+            loss_comment TEXT
         );
     """)
     yield

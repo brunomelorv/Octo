@@ -43,6 +43,9 @@ export default function AgendaPage() {
   const [lossReason, setLossReason] = useState<string>('')
   const [lossComment, setLossComment] = useState<string>('')
   const [isCompleting, setIsCompleting] = useState(false)
+  const [keepComment, setKeepComment] = useState<string>('')
+  const [keepDate, setKeepDate] = useState<string>('')
+  const [keepTime, setKeepTime] = useState<string>('')
 
   // Inline History state
   const [expandedCards, setExpandedCards] = useState<string[]>([])
@@ -173,8 +176,10 @@ export default function AgendaPage() {
 
     setIsCompleting(true)
     try {
+      const targetStage = selectedStage === 'Manter' ? (completingItem.deal_stage || 'Contato Realizado') : selectedStage
+
       if (completingItem.lead_id) {
-        const payload: any = { etapa: selectedStage, valor: 0 }
+        const payload: any = { etapa: targetStage, valor: 0 }
         if (selectedStage === 'Perdido') {
           payload.loss_reason = lossReason
           payload.loss_comment = lossComment
@@ -190,6 +195,15 @@ export default function AgendaPage() {
         }
       }
 
+      if (selectedStage === 'Manter') {
+        if (keepComment.trim()) {
+          await agendaService.addComment(completingItem.phone, dateStr, keepComment, user.email || 'Usuário')
+        }
+        if (keepDate) {
+          await agendaService.rescheduleItem(completingItem.phone, completingItem.lead_name, keepDate, keepTime || '09:00', user.email || 'Usuário', keepComment)
+        }
+      }
+
       await agendaService.completeItem(
         completingItem.chamada_id, 
         user.email || 'Usuário', 
@@ -197,14 +211,17 @@ export default function AgendaPage() {
         completingItem.lead_name, 
         selectedStage === 'Perdido' ? lossReason : undefined, 
         selectedStage === 'Perdido' ? lossComment : undefined,
-        selectedStage
+        targetStage
       )
       
-      setItems(prev => prev.map(i => i.chamada_id === completingItem.chamada_id ? { ...i, is_completed: true, deal_stage: selectedStage } : i))
+      setItems(prev => prev.map(i => i.chamada_id === completingItem.chamada_id ? { ...i, is_completed: true, deal_stage: targetStage } : i))
       setCompletingItem(null)
       setSelectedStage('')
       setLossReason('')
       setLossComment('')
+      setKeepComment('')
+      setKeepDate('')
+      setKeepTime('')
     } catch (err) {
       console.error(err)
       alert('Erro ao marcar como concluído')
@@ -397,9 +414,10 @@ export default function AgendaPage() {
                             {FUNNEL_STAGES.map(stage => (
                               <option key={stage} value={stage}>{stage}</option>
                             ))}
+                            <option value="Manter">Manter na Etapa Atual</option>
                           </select>
                         </div>
-                        {selectedStage !== 'Perdido' && selectedStage !== 'Reunião Agendada' && (
+                        {selectedStage !== 'Perdido' && selectedStage !== 'Reunião Agendada' && selectedStage !== 'Manter' && (
                           <button
                             onClick={handleCompleteSubmit}
                             disabled={isCompleting || !selectedStage}
@@ -437,6 +455,50 @@ export default function AgendaPage() {
                           >
                             {isCompleting ? 'Salvando...' : 'Confirmar Agendamento'}
                           </button>
+                        </div>
+                      )}
+
+                      {selectedStage === 'Manter' && (
+                        <div className="flex flex-col gap-3 mt-2 animate-in fade-in slide-in-from-top-1">
+                          <div>
+                            <label className="block text-xs font-medium text-indigo-800 dark:text-indigo-400 mb-1">Comentário / Observação (Obrigatório)</label>
+                            <textarea 
+                              value={keepComment}
+                              onChange={(e) => setKeepComment(e.target.value)}
+                              placeholder="Adicione um comentário ou observação..."
+                              className="w-full bg-white dark:bg-[var(--surface)] border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-2 text-sm"
+                              rows={2}
+                            />
+                          </div>
+                          <div className="flex flex-wrap gap-3 items-end">
+                            <div>
+                              <label className="block text-xs font-medium text-indigo-800 dark:text-indigo-400 mb-1">Data do Lembrete (Obrigatória)</label>
+                              <input 
+                                type="date" 
+                                value={keepDate}
+                                onChange={(e) => setKeepDate(e.target.value)}
+                                className="bg-white dark:bg-[var(--surface)] border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-1.5 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-indigo-800 dark:text-indigo-400 mb-1">Hora (Opcional)</label>
+                              <input 
+                                type="time" 
+                                value={keepTime}
+                                onChange={(e) => setKeepTime(e.target.value)}
+                                className="bg-white dark:bg-[var(--surface)] border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-1.5 text-sm"
+                              />
+                            </div>
+                            <div className="flex-1 flex justify-end">
+                              <button
+                                onClick={handleCompleteSubmit}
+                                disabled={isCompleting || !keepComment.trim() || !keepDate}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-1.5 px-6 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                              >
+                                {isCompleting ? 'Salvando...' : 'Confirmar Lembrete'}
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       )}
 

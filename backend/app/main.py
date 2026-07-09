@@ -64,6 +64,26 @@ async def lifespan(app: FastAPI):
             await query("ALTER TABLE negocios ADD COLUMN tags TEXT;")
         except Exception:
             pass
+        try:
+            await query("ALTER TABLE negocios ADD COLUMN loss_reason TEXT;")
+        except Exception:
+            pass
+        try:
+            await query("ALTER TABLE negocios ADD COLUMN loss_comment TEXT;")
+        except Exception:
+            pass
+        try:
+            await query("ALTER TABLE chamadas ADD COLUMN data_retorno_agendado TEXT;")
+        except Exception:
+            pass
+        try:
+            await query("ALTER TABLE chamadas ADD COLUMN horario_retorno_agendado TEXT;")
+        except Exception:
+            pass
+        try:
+            await query("ALTER TABLE chamadas ADD COLUMN tipo_retorno TEXT;")
+        except Exception:
+            pass
             
         # Audit Log Table
         await query("""

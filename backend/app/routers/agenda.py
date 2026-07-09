@@ -28,6 +28,7 @@ class RescheduleRequest(BaseModel):
     new_date_str: str
     new_time_str: str
     user_email: str = ""  # Kept for backward compat; ignored in favor of JWT
+    comment: Optional[str] = None
 
 @router.get("/")
 async def read_agenda(date: str, current_user: UserResponse = Depends(get_current_user)):
@@ -51,5 +52,5 @@ async def complete_agenda(req: CompleteRequest, current_user: UserResponse = Dep
 @router.post("/reschedule")
 async def reschedule_agenda(req: RescheduleRequest, current_user: UserResponse = Depends(get_current_user)):
     # Use authenticated user's email, not the client-supplied value
-    success = await reschedule_agenda_item(req.phone, req.lead_name, req.new_date_str, req.new_time_str, current_user.email)
+    success = await reschedule_agenda_item(req.phone, req.lead_name, req.new_date_str, req.new_time_str, current_user.email, req.comment)
     return {"success": success}
