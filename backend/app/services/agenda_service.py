@@ -39,6 +39,8 @@ async def get_agenda(date_str: str, user: dict = None) -> list[dict]:
         l.full_name as lead_name,
         l.id as lead_id,
         n.etapa as deal_stage,
+        n.usuario_nome,
+        n.usuario_email,
         CASE WHEN ac.chamada_id IS NOT NULL THEN 1 ELSE 0 END as is_completed
     FROM chamadas c
     LEFT JOIN leads l ON c.telefone_normalizado = l.phone
@@ -111,6 +113,8 @@ async def get_agenda(date_str: str, user: dict = None) -> list[dict]:
             "lead_name": row["lead_name"] or "Lead Desconhecido",
             "lead_id": row["lead_id"],
             "deal_stage": row["deal_stage"],
+            "usuario_nome": row.get("usuario_nome") or "Não Atribuído",
+            "usuario_email": row.get("usuario_email") or "",
             "event_type": event_type,
             "time": time_str,
             "resumo": resumo,

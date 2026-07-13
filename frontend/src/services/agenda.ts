@@ -11,6 +11,8 @@ export interface AgendaItem {
   resumo: string;
   comments: any[];
   lead_id?: string;
+  usuario_nome?: string;
+  usuario_email?: string;
 }
 
 export const agendaService = {
@@ -33,6 +35,27 @@ export const agendaService = {
     const response = await api.post('/agenda/complete', { 
       chamada_id: Number(chamada_id), user_email, phone, lead_name, loss_reason, loss_comment, deal_stage
     })
+    return response.data
+  },
+
+  async getAgendaPerformance(dateStart: string, dateEnd: string, usuarioNome?: string) {
+    const params: any = { date_start: dateStart, date_end: dateEnd }
+    if (usuarioNome && usuarioNome !== 'all') {
+      params.usuario_nome = usuarioNome
+    }
+    const response = await api.get('/agenda/performance', { params })
+    return response.data
+  },
+
+  async getAgendaPerformanceLeads(dateStart: string, dateEnd: string, usuarioNome?: string, status?: string) {
+    const params: any = { date_start: dateStart, date_end: dateEnd }
+    if (usuarioNome && usuarioNome !== 'all') {
+      params.usuario_nome = usuarioNome
+    }
+    if (status) {
+      params.status = status
+    }
+    const response = await api.get('/agenda/performance-leads', { params })
     return response.data
   }
 }

@@ -751,7 +751,7 @@ export default function DashboardPage() {
             <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">
               <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)] flex items-center">
                 Sem Contato (Nenhuma Ligação)
-                <InfoTooltip text="Leads cujo telefone NÃO aparece em nenhum arquivo de chamadas do drag-and-drop. Classificação: 'Sem Ligação'. Estes leads nunca foram discados pelo SDR." />
+                <InfoTooltip text="Contatos em que a Pitch não conseguiu contato" />
               </p>
               <div className="flex items-baseline gap-1.5 mt-1.5">
                 <span className="text-2xl font-semibold text-[var(--text-primary)]">{dashboardData.funnel.semLigacao}</span>
@@ -765,17 +765,17 @@ export default function DashboardPage() {
             <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">
               <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)] flex items-center">
                 Sem Contato Efetivo
-                <InfoTooltip text="Leads sem diálogo real: soma de 'Sem Ligação' + 'Caixa Postal / Não Atendido' + 'Ligação Curta'. Inclui todos os casos em que o lead não chegou a conversar com o SDR." />
+                <InfoTooltip text="Diferença entre os contatos não efetivos (Caixa Postal + Ligação Curta), excluindo os leads com 0 contatos (Sem Ligação)." />
               </p>
               <div className="flex items-baseline gap-1.5 mt-1.5">
                 <span className="text-2xl font-semibold text-[var(--text-primary)]">
-                  {dashboardData.funnel.semLigacao + dashboardData.funnel.caixaPostal + dashboardData.funnel.ligacaoCurta}
+                  {dashboardData.funnel.caixaPostal + dashboardData.funnel.ligacaoCurta}
                 </span>
                 <span className="text-xs text-[var(--text-secondary)]">
-                  ({dashboardData.totalLeads > 0 ? (((dashboardData.funnel.semLigacao + dashboardData.funnel.caixaPostal + dashboardData.funnel.ligacaoCurta) / dashboardData.totalLeads) * 100).toFixed(1) : '0.0'}%)
+                  ({dashboardData.totalLeads > 0 ? (((dashboardData.funnel.caixaPostal + dashboardData.funnel.ligacaoCurta) / dashboardData.totalLeads) * 100).toFixed(1) : '0.0'}%)
                 </span>
               </div>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">Sem Lig. + Caixa Postal + Lig. Curta</p>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">Caixa Postal + Lig. Curta (sem 0 contatos)</p>
             </div>
 
             <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">
@@ -803,7 +803,8 @@ export default function DashboardPage() {
                 </span>
                 <span className="text-xs text-[var(--text-secondary)]">sem diálogo</span>
               </div>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">Leads que não conversaram com o SDR</p>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">Total de Leads: {dashboardData.totalLeads}</p>
+              <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5 leading-tight">Total de Leads = Sem contatos ({dashboardData.funnel.semLigacao + dashboardData.funnel.caixaPostal + dashboardData.funnel.ligacaoCurta}) + Contatos efetivos ({dashboardData.contatos})</p>
             </div>
           </div>
 
@@ -958,8 +959,8 @@ export default function DashboardPage() {
 
             <div className="bg-[var(--surface)] border border-[var(--border)] p-4 rounded-lg transition-colors duration-150">
               <p className="text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)] flex items-center">
-                Leads Contatados
-                <InfoTooltip text="Leads que tiveram diálogo real com o SDR. Exclui 'Sem Ligação' e 'Caixa Postal / Não Atendido'. Taxa = Contatados ÷ Total de Leads × 100." />
+                Ligações Atendidas PitchYes
+                <InfoTooltip text="Leads que tiveram diálogo real com o SDR PitchYes. Exclui 'Sem Ligação' e 'Caixa Postal / Não Atendido'. Taxa = Contatados ÷ Total de Leads × 100." />
               </p>
               <div className="flex items-baseline gap-1.5 mt-1.5">
                 <span className="text-2xl font-semibold text-[var(--text-primary)]">{dashboardData.contatos}</span>
@@ -1026,18 +1027,17 @@ export default function DashboardPage() {
                     <span className="text-[var(--text-secondary)]">Duração Mediana</span>
                     <span className="font-semibold text-[var(--text-primary)]">{dashboardData.duracao.mediana}</span>
                   </div>
-                  <div className="flex justify-between items-center py-1.5 border-b border-[var(--border)] text-sm">
-                    <span className="text-[var(--text-secondary)]">Score Médio</span>
+                  <div className="flex justify-between items-center py-1.5 text-sm">
+                    <span className="text-[var(--text-secondary)] flex items-center">
+                      Score Médio
+                      <InfoTooltip text="Score médio atribuído automaticamente pela IA com base no resumo da conversa. Varia de 0 a 10, onde 10 indica máxima qualificação do lead. Calculado sobre todas as ligações que possuem score." />
+                    </span>
                     <span className="font-semibold text-[var(--text-primary)]">
                       {(
                         Object.entries(dashboardData.scores).reduce((acc, [score, count]) => acc + parseInt(score) * count, 0) /
                         Math.max(1, Object.values(dashboardData.scores).reduce((a, b) => a + b, 0))
                       ).toFixed(1)}
                     </span>
-                  </div>
-                  <div className="flex justify-between items-center py-1.5 text-sm">
-                    <span className="text-[var(--text-secondary)]">Conversão s/ Contatos</span>
-                    <span className="font-semibold text-[var(--text-primary)]">{meetingRate}%</span>
                   </div>
                 </div>
               </div>
@@ -1159,7 +1159,7 @@ export default function DashboardPage() {
                                   title="Contato via WhatsApp"
                                   className="h-7 w-7 flex items-center justify-center bg-transparent border border-[var(--border)] hover:bg-[var(--surface-raised)] text-[#22c55e] rounded-md transition-colors duration-150"
                                 >
-                                  <MessageSquare className="w-3.5 h-3.5 stroke-[1.5]" />
+                                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                                 </a>
                               )}
                             </div>
@@ -1616,7 +1616,7 @@ export default function DashboardPage() {
                                     rel="noreferrer"
                                     className="text-emerald-500 hover:underline text-[11px] font-medium flex items-center gap-1"
                                   >
-                                    <MessageSquare className="w-3 h-3 stroke-[1.5]" />
+                                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                                     Conversar
                                   </a>
                                 ) : (

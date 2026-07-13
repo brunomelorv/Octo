@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Calendar, MessageSquare, Send, ChevronLeft, ChevronRight, Phone, CheckCircle2, X, ChevronDown, ChevronUp, Clock } from 'lucide-react'
+import { Calendar, MessageSquare, Send, ChevronLeft, ChevronRight, Phone, CheckCircle2, X, ChevronDown, ChevronUp, Clock, Info } from 'lucide-react'
 import { leadsService } from '../services/leads'
 import { agendaService } from '../services/agenda'
 import { negociosService } from '../services/negocios'
@@ -14,6 +14,19 @@ const parseComment = (text: string) => {
     return { tagStr: match[1], content: match[2] }
   }
   return { tagStr: null, content: text }
+}
+
+// Tooltip component for Agenda cards
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <div className="group relative inline-flex items-center ml-1">
+      <Info className="w-3 h-3 text-[var(--text-tertiary)] stroke-[1.5] cursor-help" />
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-[var(--surface-raised)] border border-[var(--border)] rounded-md shadow-lg p-2.5 text-[11px] text-[var(--text-secondary)] leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-50 whitespace-normal text-left">
+        {text}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[var(--border)]"></div>
+      </div>
+    </div>
+  )
 }
 
 export default function AgendaPage() {
@@ -62,6 +75,23 @@ export default function AgendaPage() {
 
   const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`
   const user = useAuthStore((state) => state.user) || ({} as any)
+
+  const consultantCounts = useMemo(() => {
+    const counts: Record<string, { total: number; completed: number; pending: number }> = {}
+    items.forEach(item => {
+      const name = item.usuario_nome || 'Não Atribuído'
+      if (!counts[name]) {
+        counts[name] = { total: 0, completed: 0, pending: 0 }
+      }
+      counts[name].total += 1
+      if (item.is_completed) {
+        counts[name].completed += 1
+      } else {
+        counts[name].pending += 1
+      }
+    })
+    return counts
+  }, [items])
 
   useEffect(() => {
     fetchAgenda(dateStr)
@@ -240,12 +270,82 @@ export default function AgendaPage() {
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-[var(--surface)] p-6 rounded-xl border border-[var(--border)] shadow-sm">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Agenda do Dia</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)] flex items-center gap-1">Agenda do Dia<InfoTooltip text="Mostra os retornos e reuniões agendados para o dia selecionado. Os itens são gerados automaticamente a partir das classificações de chamadas (Retorno Agendado, Agendou Reunião) e das tags manuais (Tarefa, Chamada). Conclua os itens para movimentar o funil de vendas." /></h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">Acompanhe retornos e reuniões agendadas</p>
-          <div className="mt-2 inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full text-sm font-medium border border-indigo-200 dark:border-indigo-800">
-            <span className="flex h-2 w-2 rounded-full bg-indigo-500"></span>
-            {items.length} agendamento{items.length !== 1 ? 's' : ''} hoje
+          <div className="mt-2 flex flex-wrap gap-2 items-center">
+            <div className="inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full text-sm font-medium border border-indigo-200 dark:border-indigo-800">
+              <span className="flex h-2 w-2 rounded-full bg-indigo-500"></span>
+              {items.length} agendamento{items.length !== 1 ? 's' : ''} hoje
+            </div>
+            {items.length > 0 && (
+              <span className="inline-flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-3 py-1 rounded-full text-sm font-medium border border-emerald-200 dark:border-emerald-800">
+                <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                {items.filter(i => i.is_completed).length} concluído{items.filter(i => i.is_completed).length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
+          
+          {(user.role === 'master' || user.role === 'head') ? (
+            Object.keys(consultantCounts).length > 0 && (
+              <div className="mt-4 space-y-2.5 border-t border-[var(--border)] pt-4">
+                <span className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider block">Compromissos por Consultor:</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {Object.entries(consultantCounts).map(([name, count]) => {
+                    const pct = count.total > 0 ? Math.round((count.completed / count.total) * 100) : 0
+                    return (
+                      <div 
+                        key={name} 
+                        className="bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-3 flex flex-col justify-between hover:border-[var(--accent)]/50 transition-colors duration-150 shadow-sm"
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs font-semibold text-[var(--text-primary)]">{name}</span>
+                          <span className="text-xs font-bold text-[var(--accent)]">{pct}%</span>
+                        </div>
+                        <div className="text-[10px] text-[var(--text-secondary)] mb-2 flex justify-between">
+                          <span>{count.completed} de {count.total} concluídos</span>
+                          <span>{count.pending} pendentes</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-[var(--border)] rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-300 ${pct === 100 ? 'bg-emerald-500' : 'bg-[var(--accent)]'}`}
+                            style={{ width: `${pct}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="mt-4 space-y-2.5 border-t border-[var(--border)] pt-4 max-w-md">
+              <span className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider block">Seu Resumo de Compromissos:</span>
+              {(() => {
+                const total = items.length
+                const completed = items.filter(i => i.is_completed).length
+                const pending = total - completed
+                const pct = total > 0 ? Math.round((completed / total) * 100) : 0
+                return (
+                  <div className="bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-3.5 flex flex-col shadow-sm">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-semibold text-[var(--text-primary)]">Progresso Geral</span>
+                      <span className="text-xs font-bold text-[var(--accent)]">{pct}%</span>
+                    </div>
+                    <div className="text-[10px] text-[var(--text-secondary)] mb-2 flex justify-between">
+                      <span>{completed} de {total} compromissos concluídos</span>
+                      <span>{pending} pendentes</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-[var(--border)] rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-300 ${pct === 100 ? 'bg-emerald-500' : 'bg-[var(--accent)]'}`}
+                        style={{ width: `${pct}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
         </div>
         
         <div className="flex items-center gap-4">

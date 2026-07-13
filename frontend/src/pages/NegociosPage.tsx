@@ -29,7 +29,8 @@ import {
   Star,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Info
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
@@ -115,6 +116,40 @@ const getStatusBadgeStyle = (status: string) => {
       return 'bg-slate-50 text-slate-700 dark:bg-slate-800/20 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
   }
 }
+
+const getClassificationTooltipText = (status: string) => {
+  switch (status) {
+    case 'Agendou Reunião':
+      return 'O lead confirmou o agendamento de uma reunião com o consultor comercial.'
+    case 'Lead Qualificado':
+      return 'O lead demonstrou perfil de compra e interesse real no modelo de negócio.'
+    case 'Sem Ligação':
+      return 'Lead ainda não recebeu chamadas da inteligência artificial.'
+    case 'Caixa Postal / Não Atendido':
+      return 'A discagem foi direcionada para caixa postal ou não foi atendida pelo lead.'
+    case 'Sem Interesse':
+      return 'O lead expressou recusa direta ou declarou não ter interesse no momento.'
+    case 'Lead Desqualificado':
+      return 'O contato está fora do perfil ideal de cliente (falta de capital, etc.).'
+    case 'Retorno Agendado':
+      return 'O lead pediu para retornar a ligação em um dia e horário específico.'
+    default:
+      return 'Status de chamada não especificado.'
+  }
+}
+
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <div className="group relative inline-flex items-center ml-1 shrink-0">
+      <Info className="w-3 h-3 text-[var(--text-tertiary)] stroke-[1.5] cursor-help hover:text-[var(--text-secondary)] transition-colors" />
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-[var(--surface-raised)] border border-[var(--border)] rounded-md shadow-lg p-2 text-[10px] text-[var(--text-secondary)] leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-50 whitespace-normal text-left font-normal normal-case">
+        {text}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[var(--border)]"></div>
+      </div>
+    </div>
+  )
+}
+
 
 function classifyCall(call: Call) {
   const resumo = (call.resumo_ligacao || '').toLowerCase()
@@ -723,8 +758,9 @@ export default function NegociosPage() {
 
                           {/* Call classification tag */}
                           <div className="flex items-center justify-between">
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide ${getStatusBadgeStyle(deal.status_chamada)}`}>
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide ${getStatusBadgeStyle(deal.status_chamada)}`}>
                               {deal.status_chamada}
+                              <InfoTooltip text={getClassificationTooltipText(deal.status_chamada)} />
                             </span>
                             <span className="text-[10px] text-[var(--text-secondary)]">{deal.platform || 'Meta'}</span>
                           </div>
@@ -1096,8 +1132,9 @@ export default function NegociosPage() {
                                       {formatDate(call.data_hora)}
                                     </div>
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${getStatusBadgeStyle(classif)}`}>
+                                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${getStatusBadgeStyle(classif)}`}>
                                         {classif}
+                                        <InfoTooltip text={getClassificationTooltipText(classif)} />
                                       </span>
                                       {subcat && subcat !== classif && (
                                         <span className="text-[10px] text-[var(--text-secondary)]">({subcat})</span>

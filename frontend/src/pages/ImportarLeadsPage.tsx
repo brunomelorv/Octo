@@ -94,7 +94,7 @@ export default function ImportarLeadsPage() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-2 mb-4">
             <UploadCloud className="w-6 h-6 text-blue-600" />
-            <h2 className="text-lg font-medium text-gray-900">Leads do Facebook (CSV)</h2>
+            <h2 className="text-lg font-medium text-gray-900">Leads de Marketing (CSV)</h2>
           </div>
           
           <div 
@@ -103,7 +103,7 @@ export default function ImportarLeadsPage() {
             className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:bg-gray-50 transition-colors"
           >
             <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
-            <p className="mt-2 text-sm text-gray-600">Arraste e solte os arquivos CSV do Facebook aqui</p>
+            <p className="mt-2 text-sm text-gray-600">Arraste e solte os arquivos CSV de Marketing aqui</p>
           </div>
 
           {fbFiles.length > 0 && (
@@ -122,7 +122,7 @@ export default function ImportarLeadsPage() {
                 disabled={fbStatus === 'uploading'}
                 className="mt-4 w-full flex justify-center items-center gap-2 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
               >
-                {fbStatus === 'uploading' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Upload Leads Facebook'}
+                {fbStatus === 'uploading' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Upload Leads Marketing'}
               </button>
             </div>
           )}
