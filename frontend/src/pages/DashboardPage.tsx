@@ -15,7 +15,6 @@ import {
   PhoneCall,
   Calendar,
   Search,
-  MessageSquare,
   Award,
   Target,
   Play,
@@ -302,10 +301,7 @@ export default function DashboardPage() {
     return Math.round((dashboardData.contatos / dashboardData.totalLeads) * 100)
   }, [dashboardData])
 
-  const meetingRate = useMemo(() => {
-    if (dashboardData.contatos === 0) return 0
-    return Math.round((dashboardData.agendados / dashboardData.contatos) * 100)
-  }, [dashboardData])
+
 
   const wasteRate = useMemo(() => {
     if (dashboardData.totalLeads === 0) return 0
