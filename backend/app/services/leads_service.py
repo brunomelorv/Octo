@@ -728,3 +728,89 @@ async def get_consultants_performance() -> list[dict]:
     results.sort(key=lambda x: x["leads_agendados"], reverse=True)
     return results
 
+
+async def update_lead(lead_id: str, data: dict) -> dict | None:
+    """
+    Updates a lead by lead_id with the provided data dict.
+    Returns the updated lead dict, or None if lead not found.
+    """
+    existing = await query("SELECT * FROM leads WHERE id = ? LIMIT 1", (lead_id,))
+    if not existing:
+        return None
+
+    allowed_fields = {
+        "full_name", "email", "phone", "city", "campaign_name", 
+        "campaign_id", "lead_status", "platform", "ad_name", "adset_name"
+    }
+    
+    updates = []
+    params = []
+    for key, value in data.items():
+        if key in allowed_fields and value is not None:
+            updates.append(f"{key} = ?")
+            params.append(value)
+            
+    if updates:
+        params.append(lead_id)
+        sql = f"UPDATE leads SET {', '.join(updates)} WHERE id = ?"
+        await query(sql, tuple(params))
+
+    updated_rows = await query("SELECT * FROM leads WHERE id = ? LIMIT 1", (lead_id,))
+    return dict(updated_rows[0]) if updated_rows else None
+
+
+async def bulk_update_leads(lead_ids: list[str], data: dict) -> dict:
+    """
+    Bulk updates multiple leads by lead_ids.
+    """
+    if not lead_ids:
+        return {"updated_count": 0, "message": "Nenhum lead especificado."}
+
+    allowed_fields = {
+        "full_name", "email", "phone", "city", "campaign_name", 
+        "campaign_id", "lead_status", "platform", "ad_name", "adset_name"
+    }
+    
+    updates = []
+    params = []
+    for key, value in data.items():
+        if key in allowed_fields and value is not None:
+            updates.append(f"{key} = ?")
+            params.append(value)
+
+    if not updates:
+        return {"updated_count": 0, "message": "Nenhum campo para atualizar."}
+
+    placeholders = ",".join(["?"] * len(lead_ids))
+    params.extend(lead_ids)
+    sql = f"UPDATE leads SET {', '.join(updates)} WHERE id IN ({placeholders})"
+    await query(sql, tuple(params))
+
+    return {
+        "updated_count": len(lead_ids),
+        "message": f"{len(lead_ids)} lead(s) atualizado(s) com sucesso."
+    }
+
+
+async def bulk_delete_leads(lead_ids: list[str]) -> dict:
+    """
+    Bulk deletes multiple leads by lead_ids.
+    """
+    if not lead_ids:
+        return {"deleted_count": 0, "message": "Nenhum lead especificado."}
+
+    placeholders = ",".join(["?"] * len(lead_ids))
+    
+    try:
+        await query(f"DELETE FROM negocios WHERE lead_id IN ({placeholders})", tuple(lead_ids))
+    except Exception:
+        pass
+
+    await query(f"DELETE FROM leads WHERE id IN ({placeholders})", tuple(lead_ids))
+
+    return {
+        "deleted_count": len(lead_ids),
+        "message": f"{len(lead_ids)} lead(s) removido(s) com sucesso."
+    }
+
+

@@ -248,6 +248,103 @@ Gere insights reais baseados estritamente nas métricas fornecidas acima. Seja e
             detail=f"Erro de comunicação com a OpenAI: {str(exc)}"
         )
 
+class UpdateLeadSchema(BaseModel):
+    full_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    city: str | None = None
+    campaign_name: str | None = None
+    campaign_id: str | None = None
+    lead_status: str | None = None
+    platform: str | None = None
+
+class BulkUpdateSchema(BaseModel):
+    ids: list[str] = []
+    lead_ids: list[str] = []
+    full_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    city: str | None = None
+    campaign_name: str | None = None
+    campaign_id: str | None = None
+    lead_status: str | None = None
+    platform: str | None = None
+    data: dict | None = None
+
+class BulkDeleteSchema(BaseModel):
+    ids: list[str] = []
+    lead_ids: list[str] = []
+
+@router.put("/{lead_id}")
+async def update_lead_endpoint(
+    lead_id: str,
+    payload: UpdateLeadSchema,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Updates an existing lead by lead_id.
+    """
+    try:
+        updated_lead = await leads_service.update_lead(
+            lead_id, 
+            payload.model_dump(exclude_unset=True)
+        )
+        if not updated_lead:
+            raise HTTPException(status_code=404, detail="Lead não encontrado")
+        return updated_lead
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Erro ao atualizar lead")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+@router.post("/bulk-update")
+async def bulk_update_leads_endpoint(
+    payload: BulkUpdateSchema,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Bulk updates specified leads.
+    """
+    try:
+        target_ids = payload.ids or payload.lead_ids
+        if not target_ids:
+            raise HTTPException(status_code=400, detail="Lista de IDs de leads não fornecida")
+            
+        update_data = {}
+        if payload.data:
+            update_data.update(payload.data)
+        
+        direct_data = payload.model_dump(exclude_unset=True, exclude={"ids", "lead_ids", "data"})
+        update_data.update(direct_data)
+        
+        return await leads_service.bulk_update_leads(target_ids, update_data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Erro na atualização em massa de leads")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+@router.post("/bulk-delete")
+async def bulk_delete_leads_endpoint(
+    payload: BulkDeleteSchema,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Bulk deletes specified leads.
+    """
+    try:
+        target_ids = payload.ids or payload.lead_ids
+        if not target_ids:
+            raise HTTPException(status_code=400, detail="Lista de IDs de leads não fornecida")
+            
+        return await leads_service.bulk_delete_leads(target_ids)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Erro na exclusão em massa de leads")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
 @router.get("/{phone}")
 async def get_lead_by_phone(
     phone: str,
@@ -274,5 +371,6 @@ async def get_lead_by_phone(
     except Exception as e:
         logger.exception("Erro ao obter lead")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
 
 
