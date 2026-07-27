@@ -758,9 +758,9 @@ async def update_lead(lead_id: str, data: dict) -> dict | None:
     consultant_email = data.get("consultant_email") or data.get("usuario_email")
     if consultant_email is not None:
         c_name = ""
-        user_rows = await query("SELECT full_name FROM users WHERE email = ? LIMIT 1", (consultant_email,))
-        if user_rows and user_rows[0].get("full_name"):
-            c_name = user_rows[0].get("full_name")
+        user_rows = await query("SELECT name FROM users WHERE email = ? LIMIT 1", (consultant_email,))
+        if user_rows and user_rows[0].get("name"):
+            c_name = user_rows[0].get("name")
         else:
             c_name = consultant_email.split('@')[0].capitalize() if consultant_email else ""
 
@@ -802,9 +802,9 @@ async def bulk_update_leads(lead_ids: list[str], data: dict) -> dict:
     consultant_email = data.get("consultant_email") or data.get("usuario_email")
     if consultant_email is not None:
         c_name = ""
-        user_rows = await query("SELECT full_name FROM users WHERE email = ? LIMIT 1", (consultant_email,))
-        if user_rows and user_rows[0].get("full_name"):
-            c_name = user_rows[0].get("full_name")
+        user_rows = await query("SELECT name FROM users WHERE email = ? LIMIT 1", (consultant_email,))
+        if user_rows and user_rows[0].get("name"):
+            c_name = user_rows[0].get("name")
         else:
             c_name = consultant_email.split('@')[0].capitalize() if consultant_email else ""
 
