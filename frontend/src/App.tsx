@@ -15,6 +15,7 @@ import ImportarLeadsPage from './pages/ImportarLeadsPage'
 import ConfiguracoesPage from './pages/ConfiguracoesPage'
 import PersonalizacaoPage from './pages/PersonalizacaoPage'
 import DistribuicaoLeadsPage from './pages/DistribuicaoLeadsPage'
+import EdicaoLeadsPage from './pages/EdicaoLeadsPage'
 import CampanhasPage from './pages/CampanhasPage'
 import BugReportsPage from './pages/BugReportsPage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -88,6 +89,7 @@ export default function App() {
         <Route path="/configuracoes" element={<ConfiguracoesPage />} />
         <Route path="/personalizacao" element={<PersonalizacaoPage />} />
         <Route path="/distribuicao-leads" element={<DistribuicaoLeadsPage />} />
+        <Route path="/edicao-leads" element={<EdicaoLeadsPage />} />
         <Route path="/bug-reports" element={<BugReportsPage />} />
       </Route>
 

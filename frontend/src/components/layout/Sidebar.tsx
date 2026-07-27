@@ -80,6 +80,11 @@ export default function Sidebar() {
           path: '/distribuicao-leads',
           id: 'distribuicao_leads',
         },
+        {
+          name: 'Edição de Leads',
+          path: '/edicao-leads',
+          id: 'edicao_leads',
+        },
       ]
     },
     {
@@ -143,7 +148,7 @@ export default function Sidebar() {
     if (item.path === '/performance') {
       return ['master', 'head', 'consultor'].includes(user?.role || '')
     }
-    if (item.path === '/importar-leads' || item.path === '/distribuicao-leads') {
+    if (item.path === '/importar-leads' || item.path === '/distribuicao-leads' || item.path === '/edicao-leads') {
       return ['master', 'head', 'administrativo'].includes(user?.role || '')
     }
     return true

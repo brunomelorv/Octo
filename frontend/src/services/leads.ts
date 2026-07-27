@@ -32,4 +32,20 @@ export const leadsService = {
     const response = await api.get('/leads/consultants-performance')
     return response.data
   },
+
+  async updateLead(leadId: number | string, data: Record<string, any>) {
+    const response = await api.put(`/leads/${leadId}`, data)
+    return response.data
+  },
+
+  async bulkUpdateLeads(leadIds: (number | string)[], updates: Record<string, any>) {
+    const response = await api.post('/leads/bulk-update', { lead_ids: leadIds, updates })
+    return response.data
+  },
+
+  async bulkDeleteLeads(leadIds: (number | string)[]) {
+    const response = await api.post('/leads/bulk-delete', { lead_ids: leadIds })
+    return response.data
+  },
 }
+
