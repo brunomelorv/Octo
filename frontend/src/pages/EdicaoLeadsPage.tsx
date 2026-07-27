@@ -124,7 +124,7 @@ export default function EdicaoLeadsPage() {
         consultant: selectedConsultant || undefined,
         status: selectedStatus || undefined
       })
-      setLeads(data.leads || [])
+      setLeads(data.items || data.leads || [])
       setTotalLeads(data.total || 0)
       setTotalPages(data.pages || 1)
     } catch (err) {
