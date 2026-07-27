@@ -95,7 +95,8 @@ async def test_bulk_update_leads(client: AsyncClient, token: str):
     payload = {
         "ids": ["lead_201", "lead_202"],
         "campaign_name": "Campanha Premium",
-        "lead_status": "Qualificado"
+        "lead_status": "Qualificado",
+        "consultant_email": "consultor_teste@example.com"
     }
     
     response = await client.post(
@@ -108,12 +109,18 @@ async def test_bulk_update_leads(client: AsyncClient, token: str):
     res_data = response.json()
     assert res_data["updated_count"] == 2
     
-    # Check DB
+    # Check DB leads
     rows = await query("SELECT * FROM leads WHERE id IN ('lead_201', 'lead_202')")
     assert len(rows) == 2
     for r in rows:
         assert r["campaign_name"] == "Campanha Premium"
         assert r["lead_status"] == "Qualificado"
+
+    # Check DB negocios
+    neg_rows = await query("SELECT * FROM negocios WHERE lead_id IN ('lead_201', 'lead_202')")
+    assert len(neg_rows) == 2
+    for n in neg_rows:
+        assert n["usuario_email"] == "consultor_teste@example.com"
 
 @pytest.mark.asyncio
 async def test_bulk_delete_leads(client: AsyncClient, token: str):

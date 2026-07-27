@@ -764,7 +764,7 @@ async def update_lead(lead_id: str, data: dict) -> dict | None:
         else:
             c_name = consultant_email.split('@')[0].capitalize() if consultant_email else ""
 
-        existing_neg = await query("SELECT id FROM negocios WHERE lead_id = ? LIMIT 1", (lead_id,))
+        existing_neg = await query("SELECT lead_id FROM negocios WHERE lead_id = ? LIMIT 1", (lead_id,))
         if existing_neg:
             await query("UPDATE negocios SET usuario_email = ?, usuario_nome = ?, updated_at = datetime('now') WHERE lead_id = ?", (consultant_email, c_name, lead_id))
         else:
@@ -809,7 +809,7 @@ async def bulk_update_leads(lead_ids: list[str], data: dict) -> dict:
             c_name = consultant_email.split('@')[0].capitalize() if consultant_email else ""
 
         for lid in lead_ids:
-            existing_neg = await query("SELECT id FROM negocios WHERE lead_id = ? LIMIT 1", (lid,))
+            existing_neg = await query("SELECT lead_id FROM negocios WHERE lead_id = ? LIMIT 1", (lid,))
             if existing_neg:
                 await query("UPDATE negocios SET usuario_email = ?, usuario_nome = ?, updated_at = datetime('now') WHERE lead_id = ?", (consultant_email, c_name, lid))
             else:
