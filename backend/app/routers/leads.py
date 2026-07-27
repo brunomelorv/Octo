@@ -2,6 +2,7 @@ import re
 import json
 import logging
 import httpx
+from typing import Any
 from datetime import datetime
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -257,10 +258,12 @@ class UpdateLeadSchema(BaseModel):
     campaign_id: str | None = None
     lead_status: str | None = None
     platform: str | None = None
+    consultant_email: str | None = None
+    usuario_email: str | None = None
 
 class BulkUpdateSchema(BaseModel):
-    ids: list[str] = []
-    lead_ids: list[str] = []
+    ids: list[Any] = []
+    lead_ids: list[Any] = []
     full_name: str | None = None
     email: str | None = None
     phone: str | None = None
@@ -269,11 +272,14 @@ class BulkUpdateSchema(BaseModel):
     campaign_id: str | None = None
     lead_status: str | None = None
     platform: str | None = None
+    consultant_email: str | None = None
+    usuario_email: str | None = None
     data: dict | None = None
+    updates: dict | None = None
 
 class BulkDeleteSchema(BaseModel):
-    ids: list[str] = []
-    lead_ids: list[str] = []
+    ids: list[Any] = []
+    lead_ids: list[Any] = []
 
 @router.put("/{lead_id}")
 async def update_lead_endpoint(
@@ -314,8 +320,10 @@ async def bulk_update_leads_endpoint(
         update_data = {}
         if payload.data:
             update_data.update(payload.data)
+        if payload.updates:
+            update_data.update(payload.updates)
         
-        direct_data = payload.model_dump(exclude_unset=True, exclude={"ids", "lead_ids", "data"})
+        direct_data = payload.model_dump(exclude_unset=True, exclude={"ids", "lead_ids", "data", "updates"})
         update_data.update(direct_data)
         
         return await leads_service.bulk_update_leads(target_ids, update_data)

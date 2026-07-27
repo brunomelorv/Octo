@@ -755,6 +755,21 @@ async def update_lead(lead_id: str, data: dict) -> dict | None:
         sql = f"UPDATE leads SET {', '.join(updates)} WHERE id = ?"
         await query(sql, tuple(params))
 
+    consultant_email = data.get("consultant_email") or data.get("usuario_email")
+    if consultant_email is not None:
+        c_name = ""
+        user_rows = await query("SELECT full_name FROM users WHERE email = ? LIMIT 1", (consultant_email,))
+        if user_rows and user_rows[0].get("full_name"):
+            c_name = user_rows[0].get("full_name")
+        else:
+            c_name = consultant_email.split('@')[0].capitalize() if consultant_email else ""
+
+        existing_neg = await query("SELECT id FROM negocios WHERE lead_id = ? LIMIT 1", (lead_id,))
+        if existing_neg:
+            await query("UPDATE negocios SET usuario_email = ?, usuario_nome = ?, updated_at = datetime('now') WHERE lead_id = ?", (consultant_email, c_name, lead_id))
+        else:
+            await query("INSERT INTO negocios (lead_id, etapa, valor, updated_at, usuario_email, usuario_nome) VALUES (?, 'Sem Contato', 0, datetime('now'), ?, ?)", (lead_id, consultant_email, c_name))
+
     updated_rows = await query("SELECT * FROM leads WHERE id = ? LIMIT 1", (lead_id,))
     return dict(updated_rows[0]) if updated_rows else None
 
@@ -778,13 +793,27 @@ async def bulk_update_leads(lead_ids: list[str], data: dict) -> dict:
             updates.append(f"{key} = ?")
             params.append(value)
 
-    if not updates:
-        return {"updated_count": 0, "message": "Nenhum campo para atualizar."}
+    if updates:
+        placeholders = ",".join(["?"] * len(lead_ids))
+        exec_params = list(params) + list(lead_ids)
+        sql = f"UPDATE leads SET {', '.join(updates)} WHERE id IN ({placeholders})"
+        await query(sql, tuple(exec_params))
 
-    placeholders = ",".join(["?"] * len(lead_ids))
-    params.extend(lead_ids)
-    sql = f"UPDATE leads SET {', '.join(updates)} WHERE id IN ({placeholders})"
-    await query(sql, tuple(params))
+    consultant_email = data.get("consultant_email") or data.get("usuario_email")
+    if consultant_email is not None:
+        c_name = ""
+        user_rows = await query("SELECT full_name FROM users WHERE email = ? LIMIT 1", (consultant_email,))
+        if user_rows and user_rows[0].get("full_name"):
+            c_name = user_rows[0].get("full_name")
+        else:
+            c_name = consultant_email.split('@')[0].capitalize() if consultant_email else ""
+
+        for lid in lead_ids:
+            existing_neg = await query("SELECT id FROM negocios WHERE lead_id = ? LIMIT 1", (lid,))
+            if existing_neg:
+                await query("UPDATE negocios SET usuario_email = ?, usuario_nome = ?, updated_at = datetime('now') WHERE lead_id = ?", (consultant_email, c_name, lid))
+            else:
+                await query("INSERT INTO negocios (lead_id, etapa, valor, updated_at, usuario_email, usuario_nome) VALUES (?, 'Sem Contato', 0, datetime('now'), ?, ?)", (lid, consultant_email, c_name))
 
     return {
         "updated_count": len(lead_ids),
