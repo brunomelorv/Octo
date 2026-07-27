@@ -26,9 +26,13 @@ async def init_settings_table():
                     roles = perms.get("roles", {})
                     updated = False
                     for role, role_perms in roles.items():
-                        if isinstance(role_perms, list) and "campanhas" not in role_perms:
-                            role_perms.append("campanhas")
-                            updated = True
+                        if isinstance(role_perms, list):
+                            if "campanhas" not in role_perms:
+                                role_perms.append("campanhas")
+                                updated = True
+                            if role in ("master", "head", "administrativo") and "edicao_leads" not in role_perms:
+                                role_perms.append("edicao_leads")
+                                updated = True
                     if updated:
                         await db.execute(
                             "UPDATE settings SET value = ? WHERE key = 'permissions'",
