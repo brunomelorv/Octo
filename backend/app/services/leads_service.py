@@ -1,7 +1,31 @@
 import statistics
 import re
+import uuid
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from app.services.database import query
+
+# Leads imported from Facebook carry a -03:00 offset. Because created_time is sorted as a
+# string, manually created leads must use the same offset or they sort as if they were
+# 3 hours newer than they are (containers run in UTC).
+LEADS_TZ = ZoneInfo("America/Sao_Paulo")
+
+
+def normalize_phone(phone_val):
+    """
+    Normalizes a phone number to the same format used by build_database.py, so that
+    manually created leads join correctly against chamadas.telefone_normalizado.
+    """
+    if phone_val is None:
+        return None
+    digits = re.sub(r'\D', '', str(phone_val))
+    if not digits:
+        return None
+    if digits.startswith('55') and len(digits) in [12, 13]:
+        return '+' + digits
+    if len(digits) in [10, 11]:
+        return '+55' + digits
+    return '+' + digits
 
 async def get_leads(status=None, campanha_id=None, search=None, page=1, page_size=50, user=None, consultant=None) -> dict:
     """
@@ -666,11 +690,16 @@ async def get_consultants_performance() -> list[dict]:
 
     # 2. Get distinct users who have leads in negocios
     negocios_users = await query("SELECT DISTINCT usuario_email, usuario_nome FROM negocios WHERE usuario_email IS NOT NULL AND usuario_email != ''")
-    
-    # Merge to get all relevant consultant emails
+
+    # Merge to get all relevant consultant emails. The e-mail is the identity: names recorded
+    # in negocios are kept only as a fallback label for e-mails no longer in the users table,
+    # so a single person never shows up twice (once by name, once by e-mail local part).
     consultant_emails = set(user_names.keys())
+    recorded_names = {}
     for nu in negocios_users:
         consultant_emails.add(nu["usuario_email"])
+        if nu["usuario_nome"] and str(nu["usuario_nome"]).strip():
+            recorded_names.setdefault(nu["usuario_email"], str(nu["usuario_nome"]).strip())
 
     # 3. Fetch counts of comments/tags per user from agenda_comments
     comments_counts = await query(
@@ -706,7 +735,7 @@ async def get_consultants_performance() -> list[dict]:
 
     results = []
     for email in consultant_emails:
-        name = user_names.get(email, email.split('@')[0])
+        name = user_names.get(email) or recorded_names.get(email) or email.split('@')[0]
         total, agendados = leads_map.get(email, (0, 0))
         
         # Calculate follow_up actions
@@ -772,6 +801,117 @@ async def update_lead(lead_id: str, data: dict) -> dict | None:
 
     updated_rows = await query("SELECT * FROM leads WHERE id = ? LIMIT 1", (lead_id,))
     return dict(updated_rows[0]) if updated_rows else None
+
+
+async def _assign_consultant(lead_id: str, consultant_email: str) -> None:
+    """
+    Links a lead to a consultant through the negocios table, creating the deal row if needed.
+    """
+    user_rows = await query("SELECT name FROM users WHERE email = ? LIMIT 1", (consultant_email,))
+    if user_rows and user_rows[0].get("name"):
+        c_name = user_rows[0].get("name")
+    else:
+        c_name = consultant_email.split('@')[0].capitalize() if consultant_email else ""
+
+    existing_neg = await query("SELECT lead_id FROM negocios WHERE lead_id = ? LIMIT 1", (lead_id,))
+    if existing_neg:
+        await query(
+            "UPDATE negocios SET usuario_email = ?, usuario_nome = ?, updated_at = datetime('now') WHERE lead_id = ?",
+            (consultant_email, c_name, lead_id)
+        )
+    else:
+        await query(
+            "INSERT INTO negocios (lead_id, etapa, valor, updated_at, usuario_email, usuario_nome) "
+            "VALUES (?, 'Sem Contato', 0, datetime('now'), ?, ?)",
+            (lead_id, consultant_email, c_name)
+        )
+
+
+async def create_lead(data: dict) -> dict:
+    """
+    Creates a lead manually. Returns the created lead dict.
+    Raises ValueError for validation problems so the router can map them to 4xx responses.
+    """
+    full_name = (data.get("full_name") or "").strip()
+    if not full_name:
+        raise ValueError("O nome do lead é obrigatório.")
+
+    phone = normalize_phone(data.get("phone"))
+    if not phone:
+        raise ValueError("O telefone do lead é obrigatório.")
+    if not re.match(r'^\+\d{8,15}$', phone):
+        raise ValueError("Telefone inválido. Informe DDD + número (ex: 11987654321).")
+
+    email = (data.get("email") or "").strip() or None
+    if email and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+        raise ValueError("E-mail inválido.")
+
+    duplicate = await query("SELECT id, full_name FROM leads WHERE phone = ? LIMIT 1", (phone,))
+    if duplicate:
+        raise ValueError(f"Já existe um lead com este telefone: {duplicate[0].get('full_name') or phone}.")
+
+    campaign_id = (data.get("campaign_id") or "").strip() or None
+    campaign_name = (data.get("campaign_name") or "").strip() or None
+
+    # When only the campaign id is known, resolve its name from existing leads so the
+    # new lead groups under the same campaign in the Campanhas view.
+    if campaign_id and not campaign_name:
+        rows = await query(
+            "SELECT campaign_name FROM leads WHERE campaign_id = ? AND campaign_name IS NOT NULL LIMIT 1",
+            (campaign_id,)
+        )
+        if rows:
+            campaign_name = rows[0].get("campaign_name")
+
+    lead_id = f"manual:{uuid.uuid4().hex}"
+    created_time = data.get("created_time") or datetime.now(LEADS_TZ).isoformat(timespec="seconds")
+
+    await query(
+        """
+        INSERT INTO leads (
+            id, created_time, campaign_id, campaign_name, is_organic, platform,
+            full_name, phone, city, email, lead_status, source_file
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            lead_id,
+            created_time,
+            campaign_id,
+            campaign_name,
+            1,
+            (data.get("platform") or "manual").strip(),
+            full_name,
+            phone,
+            (data.get("city") or "").strip() or None,
+            email,
+            (data.get("lead_status") or "complete").strip(),
+            "Cadastro Manual",
+        )
+    )
+
+    consultant_email = data.get("consultant_email") or data.get("usuario_email")
+    if consultant_email:
+        await _assign_consultant(lead_id, consultant_email)
+
+    rows = await query("SELECT * FROM leads WHERE id = ? LIMIT 1", (lead_id,))
+    return dict(rows[0]) if rows else {"id": lead_id}
+
+
+async def delete_lead(lead_id: str) -> bool:
+    """
+    Deletes a single lead and its related deal row. Returns False if the lead does not exist.
+    """
+    existing = await query("SELECT id FROM leads WHERE id = ? LIMIT 1", (lead_id,))
+    if not existing:
+        return False
+
+    try:
+        await query("DELETE FROM negocios WHERE lead_id = ?", (lead_id,))
+    except Exception:
+        pass
+
+    await query("DELETE FROM leads WHERE id = ?", (lead_id,))
+    return True
 
 
 async def bulk_update_leads(lead_ids: list[str], data: dict) -> dict:

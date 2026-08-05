@@ -196,26 +196,186 @@ async def save_negocio(lead_id: str, etapa: str, valor: float = 0.0, user_email:
             
     return True
 
-async def get_negocios_historico(user: dict = None) -> list[dict]:
+# Canonical kanban columns, in funnel order. Mirrors COLUMNS in frontend/src/pages/NegociosPage.tsx.
+KANBAN_STAGES = [
+    "Sem Contato",
+    "Contatado",
+    "Qualificado",
+    "Reunião Agendada",
+    "KYC/COF/Contrato",
+    "Ganho",
+    "Perdido",
+]
+
+# Stages that represent a closed deal, excluded from the "in progress" figures.
+WON_STAGE = "Ganho"
+LOST_STAGE = "Perdido"
+
+
+async def get_kanban_stats(date_start: str = None, date_end: str = None,
+                           consultant_email: str = None, user: dict = None) -> dict:
+    """
+    Aggregates deals per kanban column.
+
+    Two different questions are answered per stage, because they are not interchangeable:
+      - "current": how many deals sit in that column right now (a snapshot; ignores dates).
+      - "entered": how many deals moved INTO that column during the window (a flow measure,
+        taken from negocios_historico).
+    A date filter only constrains "entered"; a snapshot has no date to filter on.
+    """
+    conditions = []
+    params = []
+
+    # Consultors are limited to their own deals, matching get_negocios.
+    if user and user.get("role") == "consultor":
+        conditions.append("n.usuario_email = ?")
+        params.append(user["email"])
+    elif consultant_email:
+        conditions.append("n.usuario_email = ?")
+        params.append(consultant_email)
+
+    where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    snapshot_rows = await query(
+        f"""
+        SELECT n.etapa, COUNT(*) as total, COALESCE(SUM(n.valor), 0) as valor
+        FROM negocios n
+        {where_clause}
+        GROUP BY n.etapa
+        """,
+        tuple(params)
+    )
+    snapshot = {r["etapa"]: (r["total"], r["valor"] or 0.0) for r in snapshot_rows}
+
+    # Flow: entries into each stage within the window.
+    flow_conditions = []
+    flow_params = []
+    if user and user.get("role") == "consultor":
+        flow_conditions.append("h.usuario_email = ?")
+        flow_params.append(user["email"])
+    elif consultant_email:
+        flow_conditions.append("h.usuario_email = ?")
+        flow_params.append(consultant_email)
+    if date_start and date_end:
+        flow_conditions.append("h.data_hora >= ? AND h.data_hora < date(?, '+1 day')")
+        flow_params.extend([date_start, date_end])
+
+    flow_where = ("WHERE " + " AND ".join(flow_conditions)) if flow_conditions else ""
+    flow_rows = await query(
+        f"""
+        SELECT h.etapa_nova as etapa, COUNT(*) as total,
+               COUNT(DISTINCT h.lead_id) as leads
+        FROM negocios_historico h
+        {flow_where}
+        GROUP BY h.etapa_nova
+        """,
+        tuple(flow_params)
+    )
+    flow = {r["etapa"]: (r["total"], r["leads"]) for r in flow_rows}
+
+    total_deals = sum(v[0] for v in snapshot.values())
+    total_valor = sum(v[1] for v in snapshot.values())
+
+    stages = []
+    for stage in KANBAN_STAGES:
+        current, valor = snapshot.get(stage, (0, 0.0))
+        entered, entered_leads = flow.get(stage, (0, 0))
+        stages.append({
+            "etapa": stage,
+            "current": current,
+            "valor": round(valor, 2),
+            "share": round((current / total_deals * 100.0), 1) if total_deals else 0.0,
+            "entered": entered,
+            "entered_leads": entered_leads,
+        })
+
+    # Any stage present in the data but not in the canonical list (legacy or renamed columns)
+    # is surfaced instead of silently dropped.
+    for stage, (current, valor) in snapshot.items():
+        if stage not in KANBAN_STAGES:
+            entered, entered_leads = flow.get(stage, (0, 0))
+            stages.append({
+                "etapa": stage or "Sem Etapa",
+                "current": current,
+                "valor": round(valor or 0.0, 2),
+                "share": round((current / total_deals * 100.0), 1) if total_deals else 0.0,
+                "entered": entered,
+                "entered_leads": entered_leads,
+                "unknown_stage": True,
+            })
+
+    won = snapshot.get(WON_STAGE, (0, 0.0))
+    lost = snapshot.get(LOST_STAGE, (0, 0.0))
+    closed = won[0] + lost[0]
+
+    return {
+        "stages": stages,
+        "summary": {
+            "total_deals": total_deals,
+            "total_valor": round(total_valor, 2),
+            "em_andamento": total_deals - closed,
+            "ganhos": won[0],
+            "ganhos_valor": round(won[1], 2),
+            "perdidos": lost[0],
+            # Win rate over decided deals only — dividing by the whole pipeline would
+            # understate it while deals are still open.
+            "win_rate": round((won[0] / closed * 100.0), 1) if closed else 0.0,
+        },
+    }
+
+
+def resolve_operator_name(email, stored_name, user_names: dict) -> str:
+    """
+    Resolves the display name for an operator, keyed by e-mail.
+
+    The e-mail is the identity; the name is only a label. Every source must resolve it the
+    same way, otherwise the same person shows up more than once in the Performance filters
+    (e.g. the name recorded in negocios_historico vs. the name derived from users.name for
+    agenda_comments). Precedence: current users.name, then the name recorded at the time of
+    the event, then the e-mail local part.
+    """
+    if not email or email == "Sistema":
+        return "Sistema"
+    canonical = user_names.get(email)
+    if canonical:
+        return canonical
+    if stored_name and str(stored_name).strip():
+        return str(stored_name).strip()
+    return email.split('@')[0]
+
+
+async def get_negocios_historico(user: dict = None, date_start: str = None, date_end: str = None, limit: int = 2000) -> list[dict]:
     """
     Retrieves a unified audit trail including stage transitions, agenda comments/tags,
     agenda completions, and manual reschedules, joined with lead name.
+
+    When date_start/date_end (YYYY-MM-DD) are given, each source is filtered in SQL so the
+    result is complete for that window instead of being truncated by the row cap.
     """
     # 1. Fetch user email-to-name mapping
     users_rows = await query("SELECT email, name FROM users")
     user_names = {row["email"]: row["name"] for row in users_rows}
 
+    # Date window applied per source. date_end is inclusive: comparing against the day after
+    # avoids cutting off same-day events that carry a time component.
+    def window(column: str):
+        if not date_start or not date_end:
+            return "", []
+        return f" AND {column} >= ? AND {column} < date(?, '+1 day')", [date_start, date_end]
+
     # 2. Stage transitions from negocios_historico
-    sql_hist = """
-    SELECT h.id, h.lead_id, h.etapa_anterior, h.etapa_nova, h.valor, 
+    hist_cond, hist_params = window("h.data_hora")
+    sql_hist = f"""
+    SELECT h.id, h.lead_id, h.etapa_anterior, h.etapa_nova, h.valor,
            h.usuario_email, h.usuario_nome, h.data_hora, l.full_name as lead_name
     FROM negocios_historico h
     LEFT JOIN leads l ON l.id = h.lead_id
+    WHERE 1=1 {hist_cond}
     ORDER BY h.data_hora DESC
-    LIMIT 200
+    LIMIT {limit}
     """
-    hist_rows = await query(sql_hist)
-    
+    hist_rows = await query(sql_hist, tuple(hist_params))
+
     merged_history = []
     for r in hist_rows:
         merged_history.append({
@@ -225,22 +385,24 @@ async def get_negocios_historico(user: dict = None) -> list[dict]:
             "etapa_nova": r["etapa_nova"],
             "valor": r["valor"] or 0.0,
             "usuario_email": r["usuario_email"],
-            "usuario_nome": r["usuario_nome"] or user_names.get(r["usuario_email"], r["usuario_email"].split('@')[0]),
+            "usuario_nome": resolve_operator_name(r["usuario_email"], r["usuario_nome"], user_names),
             "data_hora": r["data_hora"],
             "lead_name": r["lead_name"] or "Lead Desconhecido"
         })
 
     # 3. Comment / Tag registrations from agenda_comments
-    sql_comments = """
+    com_cond, com_params = window("ac.created_at")
+    sql_comments = f"""
     SELECT ac.id, ac.telefone_normalizado, ac.comentario, ac.created_at, ac.usuario_email,
            l.id as lead_id, l.full_name as lead_name, n.etapa as current_stage
     FROM agenda_comments ac
     LEFT JOIN leads l ON ac.telefone_normalizado = l.phone
     LEFT JOIN negocios n ON n.lead_id = l.id
+    WHERE 1=1 {com_cond}
     ORDER BY ac.created_at DESC
-    LIMIT 200
+    LIMIT {limit}
     """
-    comments_rows = await query(sql_comments)
+    comments_rows = await query(sql_comments, tuple(com_params))
     for r in comments_rows:
         comment = r["comentario"] or ""
         etapa_nova = "Anotação"
@@ -249,8 +411,8 @@ async def get_negocios_historico(user: dict = None) -> list[dict]:
             etapa_nova = f"Tag: {tag_part}"
         
         email = r["usuario_email"]
-        name = user_names.get(email, email.split('@')[0])
-        
+        name = resolve_operator_name(email, None, user_names)
+
         merged_history.append({
             "id": 1000000 + r["id"],
             "lead_id": r["lead_id"] or "",
@@ -264,21 +426,23 @@ async def get_negocios_historico(user: dict = None) -> list[dict]:
         })
 
     # 4. Agenda Completions from agenda_completions
-    sql_completions = """
+    comp_cond, comp_params = window("ac.completed_at")
+    sql_completions = f"""
     SELECT ac.chamada_id, ac.completed_at, ac.completed_by,
            c.resumo_ligacao, l.id as lead_id, l.full_name as lead_name, n.etapa as current_stage
     FROM agenda_completions ac
     JOIN chamadas c ON ac.chamada_id = c.id
     LEFT JOIN leads l ON c.telefone_normalizado = l.phone
     LEFT JOIN negocios n ON n.lead_id = l.id
+    WHERE 1=1 {comp_cond}
     ORDER BY ac.completed_at DESC
-    LIMIT 200
+    LIMIT {limit}
     """
-    completions_rows = await query(sql_completions)
+    completions_rows = await query(sql_completions, tuple(comp_params))
     for r in completions_rows:
         email = r["completed_by"]
-        name = user_names.get(email, email.split('@')[0])
-        
+        name = resolve_operator_name(email, None, user_names)
+
         resumo = r["resumo_ligacao"] or ""
         etapa_nova = "Agenda Concluída"
         if "Perdido" in resumo:
@@ -299,21 +463,22 @@ async def get_negocios_historico(user: dict = None) -> list[dict]:
         })
 
     # 5. Reschedules from chamadas
-    sql_reschedules = """
+    resc_cond, resc_params = window("c.data_hora")
+    sql_reschedules = f"""
     SELECT c.id, c.data_hora, c.anotacoes as usuario_email, c.resumo_ligacao,
            l.id as lead_id, l.full_name as lead_name, n.etapa as current_stage
     FROM chamadas c
     LEFT JOIN leads l ON c.telefone_normalizado = l.phone
     LEFT JOIN negocios n ON n.lead_id = l.id
-    WHERE c.status_ligacao = 'Reagendamento CRM'
+    WHERE c.status_ligacao = 'Reagendamento CRM' {resc_cond}
     ORDER BY c.data_hora DESC
-    LIMIT 200
+    LIMIT {limit}
     """
-    reschedules_rows = await query(sql_reschedules)
+    reschedules_rows = await query(sql_reschedules, tuple(resc_params))
     for r in reschedules_rows:
         email = r["usuario_email"] or "Sistema"
-        name = user_names.get(email, email.split('@')[0]) if email != "Sistema" else "Sistema"
-        
+        name = resolve_operator_name(email, None, user_names)
+
         merged_history.append({
             "id": 3000000 + r["id"],
             "lead_id": r["lead_id"] or "",
@@ -334,5 +499,5 @@ async def get_negocios_historico(user: dict = None) -> list[dict]:
         user_email = user.get("email", "")
         merged_history = [h for h in merged_history if h["usuario_email"] == user_email]
 
-    return merged_history[:200]
+    return merged_history[:limit]
 

@@ -1,6 +1,88 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.services.database import query
+
+
+def parse_date_range(date_start: str, date_end: str) -> tuple[datetime, datetime]:
+    """
+    Parses an inclusive YYYY-MM-DD range, tolerating full timestamps (some tables store
+    "YYYY-MM-DD HH:MM:SS"). Raises ValueError with a user-facing message on bad input, so
+    callers can map it to a 400.
+    """
+    try:
+        start = datetime.strptime(str(date_start).strip()[:10], "%Y-%m-%d")
+        end = datetime.strptime(str(date_end).strip()[:10], "%Y-%m-%d")
+    except (ValueError, AttributeError, TypeError):
+        raise ValueError("Formato de data inválido. Use YYYY-MM-DD.")
+    if start > end:
+        raise ValueError("A data inicial não pode ser posterior à data final.")
+    return start, end
+
+
+async def get_agenda_performance(date_start: str, date_end: str, usuario_nome: str = None) -> dict:
+    """
+    Daily agenda totals/completions for a date range, plus summary. Shared by the agenda
+    performance endpoint and the Excel export so both report identical numbers.
+    """
+    start, end = parse_date_range(date_start, date_end)
+
+    extra_cond = ""
+    extra_params = []
+    if usuario_nome and usuario_nome != "all":
+        extra_cond = " AND n.usuario_nome = ?"
+        extra_params = [usuario_nome]
+
+    results = []
+    current = start
+    while current <= end:
+        date_str = current.strftime("%Y-%m-%d")
+        date_formatted = current.strftime("%d/%m/%y")
+
+        total_sql = f"""
+        SELECT COUNT(DISTINCT c.telefone_normalizado) as total
+        FROM chamadas c
+        LEFT JOIN negocios n ON n.lead_id = (SELECT id FROM leads WHERE phone = c.telefone_normalizado LIMIT 1)
+        WHERE (c.data_retorno_agendado = ? OR (c.data_retorno_agendado IS NULL AND (c.resumo_ligacao LIKE ? OR c.reuniao_agendada LIKE ? OR c.reuniao_agendada LIKE ?)))
+        AND (n.etapa != 'Perdido' OR n.etapa IS NULL)
+        {extra_cond}
+        """
+        total_rows = await query(total_sql, (date_str, f"%{date_formatted}%", f"%{date_str}%", f"%{date_formatted}%", *extra_params))
+        total = total_rows[0]["total"] if total_rows else 0
+
+        completed_sql = f"""
+        SELECT COUNT(DISTINCT c.telefone_normalizado) as completed
+        FROM chamadas c
+        INNER JOIN agenda_completions ac ON ac.chamada_id = c.id
+        LEFT JOIN negocios n ON n.lead_id = (SELECT id FROM leads WHERE phone = c.telefone_normalizado LIMIT 1)
+        WHERE (c.data_retorno_agendado = ? OR (c.data_retorno_agendado IS NULL AND (c.resumo_ligacao LIKE ? OR c.reuniao_agendada LIKE ? OR c.reuniao_agendada LIKE ?)))
+        AND (n.etapa != 'Perdido' OR n.etapa IS NULL)
+        {extra_cond}
+        """
+        completed_rows = await query(completed_sql, (date_str, f"%{date_formatted}%", f"%{date_str}%", f"%{date_formatted}%", *extra_params))
+        completed = completed_rows[0]["completed"] if completed_rows else 0
+
+        results.append({
+            "date": date_str,
+            "total": total,
+            "completed": completed,
+            "pending": total - completed
+        })
+
+        current += timedelta(days=1)
+
+    total_all = sum(r["total"] for r in results)
+    completed_all = sum(r["completed"] for r in results)
+
+    return {
+        "daily": results,
+        "summary": {
+            "total": total_all,
+            "completed": completed_all,
+            "pending": total_all - completed_all,
+            "completion_rate": round((completed_all / total_all * 100), 1) if total_all > 0 else 0
+        }
+    }
+
 
 async def get_agenda(date_str: str, user: dict = None) -> list[dict]:
     # date_str is expected to be YYYY-MM-DD

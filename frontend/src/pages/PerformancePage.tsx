@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { negociosService } from '../services/negocios'
+import type { KanbanStats } from '../services/negocios'
 import { leadsService } from '../services/leads'
 import { agendaService } from '../services/agenda'
 import {
@@ -11,7 +12,11 @@ import {
   Users,
   Activity,
   ArrowUpDown,
-  Info
+  Info,
+  FileSpreadsheet,
+  Loader2,
+  AlertCircle,
+  X
 } from 'lucide-react'
 import {
   Chart as ChartJS,
@@ -26,6 +31,30 @@ import {
   Filler,
 } from 'chart.js'
 import { Line, Bar } from 'react-chartjs-2'
+
+// Period options, shared by the filter buttons and the label written into the export.
+const DATE_FILTER_OPTIONS = [
+  { label: 'Tudo', value: 'all' },
+  { label: 'Hoje', value: 'hoje' },
+  { label: 'Ontem', value: 'ontem' },
+  { label: 'Esta Semana', value: 'essa_semana' },
+  { label: 'Semana Passada', value: 'semana_passada' },
+  { label: 'Semana Retrasada', value: 'semana_retrasada' },
+  { label: 'Este Mês', value: 'esse_mes' },
+  { label: 'Personalizado', value: 'personalizado' },
+]
+
+/**
+ * Extracts the YYYY-MM-DD part of a timestamp.
+ *
+ * Timestamps reach the front end in two shapes: ISO with a "T" (written by the API via
+ * isoformat) and space separated (written by SQLite datetime(), which is what every row in
+ * `chamadas` uses). Splitting on "T" alone left the whole timestamp in place for the second
+ * shape, and the agenda endpoints then rejected it as an invalid date.
+ */
+function toDateOnly(value: string): string {
+  return value.replace(' ', 'T').split('T')[0]
+}
 
 // Tooltip component for KPI and performance cards
 function InfoTooltip({ text }: { text: string }) {
@@ -99,6 +128,14 @@ export default function PerformancePage() {
     };
   } | null>(null)
   const [loadingAgendaPerf, setLoadingAgendaPerf] = useState(false)
+
+  // Kanban stage statistics
+  const [kanbanStats, setKanbanStats] = useState<KanbanStats | null>(null)
+  const [loadingKanban, setLoadingKanban] = useState(false)
+
+  // Excel export
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!selectedConsultant) {
@@ -197,16 +234,28 @@ export default function PerformancePage() {
     }
   }
 
-  // Extract unique users for filtering
+  // Extract unique operators for filtering, keyed by e-mail.
+  // The e-mail is the identity: keying by name made the same person appear twice whenever the
+  // recorded name and the name resolved from the users table differed (e.g. after a rename).
   const uniqueUsers = useMemo(() => {
-    const users = new Set<string>()
+    const byEmail = new Map<string, string>()
     history.forEach((item) => {
-      if (item.usuario_nome) {
-        users.add(item.usuario_nome)
+      const email = item.usuario_email
+      if (!email) return
+      if (!byEmail.has(email)) {
+        byEmail.set(email, item.usuario_nome || email.split('@')[0])
       }
     })
-    return Array.from(users).sort()
+    return Array.from(byEmail.entries())
+      .map(([email, name]) => ({ email, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
   }, [history])
+
+  // The agenda endpoints filter by operator NAME, so translate the selected e-mail.
+  const selectedUserName = useMemo(() => {
+    if (userFilter === 'all') return 'all'
+    return uniqueUsers.find((u) => u.email === userFilter)?.name || userFilter
+  }, [userFilter, uniqueUsers])
 
   // Calculate Reference Date (maximum date in dataset)
   const referenceDate = useMemo(() => {
@@ -258,6 +307,15 @@ export default function PerformancePage() {
       endOfWeek.setHours(23, 59, 59, 999)
       return { start, end: endOfWeek }
     }
+    if (dateFilter === 'semana_retrasada') {
+      const day = start.getDay()
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1) - 14
+      start.setDate(diff)
+      const endOfWeek = new Date(start)
+      endOfWeek.setDate(start.getDate() + 6)
+      endOfWeek.setHours(23, 59, 59, 999)
+      return { start, end: endOfWeek }
+    }
     if (dateFilter === 'esse_mes') {
       start.setDate(1)
       return { start, end }
@@ -281,7 +339,7 @@ export default function PerformancePage() {
       if (d && (!minDateStr || d < minDateStr)) minDateStr = d
     }
     if (minDateStr) {
-      return minDateStr.split('T')[0]
+      return toDateOnly(minDateStr)
     }
     const d = new Date()
     d.setDate(d.getDate() - 30)
@@ -311,17 +369,105 @@ export default function PerformancePage() {
     const { startStr, endStr } = getSelectedDateRangeStrings()
 
     setLoadingAgendaPerf(true)
-    agendaService.getAgendaPerformance(startStr, endStr, userFilter)
+    agendaService.getAgendaPerformance(startStr, endStr, selectedUserName)
       .then((data) => {
+        // This endpoint answers HTTP 200 with {error: "..."} for a rejected date range, so a
+        // truthy response is not enough — without `summary` the render below would throw and
+        // take the whole page down.
+        if (!data || !data.summary) {
+          console.error('Resposta inesperada de agenda/performance:', data)
+          setAgendaPerformance(null)
+          return
+        }
         setAgendaPerformance(data)
       })
       .catch((err) => {
         console.error('Error fetching agenda performance:', err)
+        setAgendaPerformance(null)
       })
       .finally(() => {
         setLoadingAgendaPerf(false)
       })
+  }, [dateRangeBounds, minHistoryDateStr, selectedUserName])
+
+  // Fetch kanban stage statistics for the selected window and operator.
+  // Only the "entered" figures react to the date filter; "current" is a snapshot by nature.
+  useEffect(() => {
+    setLoadingKanban(true)
+    const params: { date_start?: string; date_end?: string; consultant_email?: string } = {}
+    if (dateRangeBounds) {
+      const { startStr, endStr } = getSelectedDateRangeStrings()
+      params.date_start = startStr
+      params.date_end = endStr
+    }
+    if (userFilter !== 'all') {
+      params.consultant_email = userFilter
+    }
+
+    negociosService.getKanbanStats(params)
+      .then((data) => setKanbanStats(data))
+      .catch((err) => {
+        console.error('Error fetching kanban stats:', err)
+        setKanbanStats(null)
+      })
+      .finally(() => setLoadingKanban(false))
   }, [dateRangeBounds, minHistoryDateStr, userFilter])
+
+  // Export the page summary as .xlsx, mirroring the active date and operator filters.
+  const handleExportExcel = async () => {
+    if (exporting) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      const params: {
+        date_start?: string
+        date_end?: string
+        consultant_email?: string
+        period_label?: string
+      } = {
+        period_label:
+          DATE_FILTER_OPTIONS.find((o) => o.value === dateFilter)?.label || 'Todo o período',
+      }
+      if (dateRangeBounds) {
+        const { startStr, endStr } = getSelectedDateRangeStrings()
+        params.date_start = startStr
+        params.date_end = endStr
+      }
+      if (userFilter !== 'all') {
+        params.consultant_email = userFilter
+      }
+
+      const { blob, filename } = await negociosService.exportPerformance(params)
+
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      // Released on the next tick so the download has already been handed to the browser.
+      setTimeout(() => window.URL.revokeObjectURL(url), 0)
+    } catch (err: any) {
+      console.error('Erro ao exportar para Excel:', err)
+      // The error body is a Blob because the request asked for one — read it back as text.
+      let detail = 'Erro ao gerar o arquivo Excel. Tente novamente.'
+      try {
+        const data = err?.response?.data
+        if (data instanceof Blob) {
+          const parsed = JSON.parse(await data.text())
+          if (parsed?.detail) detail = parsed.detail
+        } else if (data?.detail) {
+          detail = data.detail
+        }
+      } catch {
+        // Keep the generic message.
+      }
+      setExportError(detail)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const handleCardClick = (type: 'total' | 'completed' | 'pending') => {
     const { startStr, endStr } = getSelectedDateRangeStrings()
@@ -334,7 +480,7 @@ export default function PerformancePage() {
       pending: 'pending'
     }
     
-    agendaService.getAgendaPerformanceLeads(startStr, endStr, userFilter, statusMap[type])
+    agendaService.getAgendaPerformanceLeads(startStr, endStr, selectedUserName, statusMap[type])
       .then((data) => {
         setCardLeads(data || [])
       })
@@ -356,7 +502,7 @@ export default function PerformancePage() {
 
       const matchesSearch = !query || name.includes(query) || user.includes(query) || email.includes(query)
       const matchesStage = stageFilter === 'all' || item.etapa_nova === stageFilter || item.etapa_anterior === stageFilter
-      const matchesUser = userFilter === 'all' || item.usuario_nome === userFilter
+      const matchesUser = userFilter === 'all' || item.usuario_email === userFilter
 
       let matchesDate = true
       if (dateRangeBounds && item.data_hora) {
@@ -374,19 +520,26 @@ export default function PerformancePage() {
     const totalUpdates = filteredHistory.length
     const totalValueMoved = filteredHistory.reduce((sum, item) => sum + (item.valor || 0), 0)
 
-    // Find the most active user
-    const userCounts: { [key: string]: number } = {}
+    // Find the most active operator. Counted by e-mail so a rename does not split the tally
+    // across two identities; the name is only used for display.
+    const userCounts = new Map<string, { name: string; count: number }>()
     filteredHistory.forEach((item) => {
-      const u = item.usuario_nome || 'Sistema'
-      userCounts[u] = (userCounts[u] || 0) + 1
+      const key = item.usuario_email || 'Sistema'
+      const label = item.usuario_nome || 'Sistema'
+      const entry = userCounts.get(key)
+      if (entry) {
+        entry.count += 1
+      } else {
+        userCounts.set(key, { name: label, count: 1 })
+      }
     })
 
     let activeUser = 'Nenhum'
     let maxUpdates = 0
-    Object.entries(userCounts).forEach(([u, count]) => {
+    userCounts.forEach(({ name, count }) => {
       if (count > maxUpdates) {
         maxUpdates = count
-        activeUser = u
+        activeUser = name
       }
     })
 
@@ -430,7 +583,8 @@ export default function PerformancePage() {
 
   const filteredConsultantsPerformance = useMemo(() => {
     if (userFilter === 'all') return consultantsPerformance
-    return consultantsPerformance.filter(c => c.consultant === userFilter)
+    // Matched by e-mail (the backend keys consultants by e-mail), not by display name.
+    return consultantsPerformance.filter((c) => c.email === userFilter)
   }, [consultantsPerformance, userFilter])
 
   const consultantsChartData = useMemo(() => {
@@ -537,6 +691,7 @@ export default function PerformancePage() {
             Acompanhe o histórico de alterações dos cards de negócios e o desempenho do pipeline.
           </p>
         </div>
+        <div className="flex items-center gap-2">
         <button
           onClick={fetchHistory}
           className="flex items-center gap-1.5 bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--surface-raised)] text-sm h-8 px-3 rounded-md transition-colors duration-150"
@@ -544,7 +699,36 @@ export default function PerformancePage() {
           <Activity className="h-4 w-4 stroke-[1.5] text-[var(--text-secondary)]" />
           <span>Atualizar Histórico</span>
         </button>
+        <button
+          onClick={handleExportExcel}
+          disabled={exporting}
+          title="Exporta o resumo da página em .xlsx, respeitando o período e o operador selecionados"
+          className="flex items-center gap-1.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-medium h-8 px-3 rounded-md transition-colors duration-150 disabled:opacity-60"
+        >
+          {exporting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin stroke-[1.5]" />
+              <span>Gerando...</span>
+            </>
+          ) : (
+            <>
+              <FileSpreadsheet className="h-4 w-4 stroke-[1.5]" />
+              <span>Exportar P/ Excel</span>
+            </>
+          )}
+        </button>
+        </div>
       </div>
+
+      {exportError && (
+        <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
+          <AlertCircle className="h-4 w-4 stroke-[1.5] shrink-0 mt-0.5" />
+          <span className="flex-1">{exportError}</span>
+          <button onClick={() => setExportError(null)} className="bg-transparent opacity-70 hover:opacity-100">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Date & Vendedor Filter Panel */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 transition-colors duration-150">
@@ -555,15 +739,7 @@ export default function PerformancePage() {
               Filtrar por Período
             </span>
             <div className="flex flex-wrap gap-1.5 items-center">
-              {[
-                { label: 'Tudo', value: 'all' },
-                { label: 'Hoje', value: 'hoje' },
-                { label: 'Ontem', value: 'ontem' },
-                { label: 'Esta Semana', value: 'essa_semana' },
-                { label: 'Semana Passada', value: 'semana_passada' },
-                { label: 'Este Mês', value: 'esse_mes' },
-                { label: 'Personalizado', value: 'personalizado' },
-              ].map((btn) => (
+              {DATE_FILTER_OPTIONS.map((btn) => (
                 <button
                   key={btn.value}
                   onClick={() => setDateFilter(btn.value)}
@@ -608,8 +784,8 @@ export default function PerformancePage() {
             >
               <option value="all">Todos Operadores</option>
               {uniqueUsers.map((user) => (
-                <option key={user} value={user}>
-                  {user}
+                <option key={user.email} value={user.email}>
+                  {user.name}
                 </option>
               ))}
             </select>
@@ -665,6 +841,164 @@ export default function PerformancePage() {
         </div>
       </div>
 
+      {/* Kanban Stage Statistics */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5 space-y-4 transition-colors duration-150">
+        <div className="border-b border-[var(--border)] pb-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center">
+              Estatísticas por Etapa do Kanban
+              <InfoTooltip text="Atual = negócios que estão nessa coluna agora (retrato do funil, não depende do período). Entradas = negócios que entraram nessa coluna dentro do período selecionado." />
+            </h3>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Distribuição do funil por coluna, com o volume que entrou em cada etapa no período.
+            </p>
+          </div>
+          {kanbanStats && (
+            <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
+              <span>
+                Pipeline:{' '}
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {kanbanStats.summary.total_deals.toLocaleString('pt-BR')}
+                </span>
+              </span>
+              <span>
+                Taxa de ganho:{' '}
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  {kanbanStats.summary.win_rate}%
+                </span>
+              </span>
+            </div>
+          )}
+        </div>
+
+        {loadingKanban ? (
+          <div className="flex items-center justify-center gap-2 py-8 text-xs text-[var(--text-secondary)]">
+            <Activity className="h-4 w-4 animate-spin stroke-[1.5]" />
+            <span>Carregando estatísticas do kanban...</span>
+          </div>
+        ) : !kanbanStats || kanbanStats.summary.total_deals === 0 ? (
+          <div className="py-8 text-center text-xs text-[var(--text-secondary)]">
+            Nenhum negócio mapeado no kanban{userFilter !== 'all' ? ' para este operador' : ''}.
+          </div>
+        ) : (
+          <>
+            {/* Pipeline summary */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                {
+                  label: 'Em Andamento',
+                  value: kanbanStats.summary.em_andamento.toLocaleString('pt-BR'),
+                  hint: 'Excluindo Ganho e Perdido',
+                  tone: 'text-[var(--text-primary)]',
+                },
+                {
+                  label: 'Ganhos',
+                  value: kanbanStats.summary.ganhos.toLocaleString('pt-BR'),
+                  hint: formatCurrency(kanbanStats.summary.ganhos_valor),
+                  tone: 'text-emerald-600 dark:text-emerald-400',
+                },
+                {
+                  label: 'Perdidos',
+                  value: kanbanStats.summary.perdidos.toLocaleString('pt-BR'),
+                  hint: 'Negócios encerrados sem venda',
+                  tone: 'text-red-600 dark:text-red-400',
+                },
+                {
+                  label: 'Valor Total',
+                  value: formatCurrency(kanbanStats.summary.total_valor),
+                  hint: 'Soma de todas as etapas',
+                  tone: 'text-[var(--text-primary)]',
+                },
+              ].map((card) => (
+                <div
+                  key={card.label}
+                  className="bg-[var(--surface-raised)] border border-[var(--border)] rounded-md p-3 space-y-0.5"
+                >
+                  <span className="text-[10px] font-medium uppercase tracking-widest text-[var(--text-secondary)]">
+                    {card.label}
+                  </span>
+                  <p className={`text-base font-semibold ${card.tone}`}>{card.value}</p>
+                  <p className="text-[11px] text-[var(--text-tertiary)] truncate">{card.hint}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Per-stage breakdown */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="border-b border-[var(--border)] text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+                    <th className="py-2 pr-3">Etapa</th>
+                    <th className="py-2 px-3 text-right">Atual</th>
+                    <th className="py-2 px-3">Distribuição</th>
+                    <th className="py-2 px-3 text-right">Valor</th>
+                    <th className="py-2 pl-3 text-right">Entradas no Período</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kanbanStats.stages.map((s) => (
+                    <tr
+                      key={s.etapa}
+                      className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface-raised)] transition-colors duration-150"
+                    >
+                      <td className="py-2.5 pr-3">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${getStageBadgeStyle(s.etapa)}`}
+                        >
+                          {s.etapa}
+                        </span>
+                        {s.unknown_stage && (
+                          <span
+                            className="ml-1.5 text-[10px] text-amber-600 dark:text-amber-400"
+                            title="Etapa presente nos dados mas fora das colunas padrão do kanban"
+                          >
+                            fora do padrão
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-[var(--text-primary)]">
+                        {s.current.toLocaleString('pt-BR')}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-2 min-w-[120px]">
+                          <div className="flex-1 bg-[var(--surface-raised)] border border-[var(--border)] rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
+                              style={{ width: `${Math.min(s.share, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-[11px] text-[var(--text-secondary)] w-10 text-right shrink-0">
+                            {s.share.toFixed(0)}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-[var(--text-primary)]">
+                        {formatCurrency(s.valor)}
+                      </td>
+                      <td className="py-2.5 pl-3 text-right">
+                        <span className="font-medium text-[var(--text-primary)]">
+                          {s.entered.toLocaleString('pt-BR')}
+                        </span>
+                        {s.entered > 0 && (
+                          <span className="text-[11px] text-[var(--text-secondary)] ml-1">
+                            ({s.entered_leads} lead{s.entered_leads === 1 ? '' : 's'})
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="text-[11px] text-[var(--text-tertiary)]">
+              "Atual" é um retrato do funil no momento e não muda com o filtro de período —
+              apenas "Entradas no Período" responde às datas.
+            </p>
+          </>
+        )}
+      </div>
+
       {/* Daily Agenda Performance Section */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5 space-y-4 transition-colors duration-150">
         <div className="border-b border-[var(--border)] pb-2.5 flex items-center justify-between">
@@ -681,7 +1015,7 @@ export default function PerformancePage() {
           )}
         </div>
 
-        {agendaPerformance ? (
+        {agendaPerformance?.summary ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Agenda Stats */}
             <div className="space-y-4 flex flex-col justify-between">
@@ -1153,7 +1487,7 @@ export default function PerformancePage() {
                     dateFilter === 'personalizado' ? `${customDateStart.split('-').reverse().join('/')} até ${customDateEnd.split('-').reverse().join('/')}` :
                     dateFilter
                   }
-                  {userFilter !== 'all' && ` • Operador: ${userFilter}`}
+                  {userFilter !== 'all' && ` • Operador: ${selectedUserName}`}
                 </p>
               </div>
               <button 

@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from app.services.agenda_service import get_agenda, add_agenda_comment, complete_agenda_item, reschedule_agenda_item
+from app.services.agenda_service import get_agenda, add_agenda_comment, complete_agenda_item, reschedule_agenda_item, get_agenda_performance
 from app.routers.auth import get_current_user
 from app.models.user import UserResponse
 
@@ -63,75 +63,12 @@ async def agenda_performance(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Returns agenda performance stats for a date range."""
-    from app.services.database import query
-    from datetime import datetime, timedelta
-    
-    # Parse dates
+    # A rejected range must surface as a 4xx: answering 200 with an {"error": ...} body made
+    # callers treat the payload as valid and blow up on the missing "summary" key.
     try:
-        start = datetime.strptime(date_start, "%Y-%m-%d")
-        end = datetime.strptime(date_end, "%Y-%m-%d")
-    except ValueError:
-        return {"error": "Invalid date format"}
-    
-    extra_cond = ""
-    extra_params = []
-    if usuario_nome and usuario_nome != "all":
-        extra_cond = " AND n.usuario_nome = ?"
-        extra_params = [usuario_nome]
-        
-    results = []
-    current = start
-    while current <= end:
-        date_str = current.strftime("%Y-%m-%d")
-        date_formatted = current.strftime("%d/%m/%y")
-        
-        # Count total agenda items for this date
-        total_sql = f"""
-        SELECT COUNT(DISTINCT c.telefone_normalizado) as total
-        FROM chamadas c
-        LEFT JOIN negocios n ON n.lead_id = (SELECT id FROM leads WHERE phone = c.telefone_normalizado LIMIT 1)
-        WHERE (c.data_retorno_agendado = ? OR (c.data_retorno_agendado IS NULL AND (c.resumo_ligacao LIKE ? OR c.reuniao_agendada LIKE ? OR c.reuniao_agendada LIKE ?)))
-        AND (n.etapa != 'Perdido' OR n.etapa IS NULL)
-        {extra_cond}
-        """
-        total_rows = await query(total_sql, (date_str, f"%{date_formatted}%", f"%{date_str}%", f"%{date_formatted}%", *extra_params))
-        total = total_rows[0]["total"] if total_rows else 0
-        
-        # Count completed items for this date
-        completed_sql = f"""
-        SELECT COUNT(DISTINCT c.telefone_normalizado) as completed
-        FROM chamadas c
-        INNER JOIN agenda_completions ac ON ac.chamada_id = c.id
-        LEFT JOIN negocios n ON n.lead_id = (SELECT id FROM leads WHERE phone = c.telefone_normalizado LIMIT 1)
-        WHERE (c.data_retorno_agendado = ? OR (c.data_retorno_agendado IS NULL AND (c.resumo_ligacao LIKE ? OR c.reuniao_agendada LIKE ? OR c.reuniao_agendada LIKE ?)))
-        AND (n.etapa != 'Perdido' OR n.etapa IS NULL)
-        {extra_cond}
-        """
-        completed_rows = await query(completed_sql, (date_str, f"%{date_formatted}%", f"%{date_str}%", f"%{date_formatted}%", *extra_params))
-        completed = completed_rows[0]["completed"] if completed_rows else 0
-        
-        results.append({
-            "date": date_str,
-            "total": total,
-            "completed": completed,
-            "pending": total - completed
-        })
-        
-        current += timedelta(days=1)
-    
-    # Summary totals
-    total_all = sum(r["total"] for r in results)
-    completed_all = sum(r["completed"] for r in results)
-    
-    return {
-        "daily": results,
-        "summary": {
-            "total": total_all,
-            "completed": completed_all,
-            "pending": total_all - completed_all,
-            "completion_rate": round((completed_all / total_all * 100), 1) if total_all > 0 else 0
-        }
-    }
+        return await get_agenda_performance(date_start, date_end, usuario_nome)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/performance-leads")
 async def get_performance_leads(
@@ -145,12 +82,23 @@ async def get_performance_leads(
     from app.services.database import query
     from datetime import datetime, timedelta
     
-    # Parse dates
+    # Parse dates. A rejected range must surface as a 4xx: answering 200 with an {"error": ...}
+    # body made callers treat the payload as valid and blow up on the missing "summary" key.
+    # Timestamps are accepted (and truncated) since some tables store "YYYY-MM-DD HH:MM:SS".
     try:
-        start = datetime.strptime(date_start, "%Y-%m-%d")
-        end = datetime.strptime(date_end, "%Y-%m-%d")
-    except ValueError:
-        return {"error": "Invalid date format"}
+        start = datetime.strptime(date_start.strip()[:10], "%Y-%m-%d")
+        end = datetime.strptime(date_end.strip()[:10], "%Y-%m-%d")
+    except (ValueError, AttributeError):
+        raise HTTPException(
+            status_code=400,
+            detail="Formato de data inválido. Use YYYY-MM-DD."
+        )
+
+    if start > end:
+        raise HTTPException(
+            status_code=400,
+            detail="A data inicial não pode ser posterior à data final."
+        )
         
     # Generate conditions for dates
     date_conditions = []

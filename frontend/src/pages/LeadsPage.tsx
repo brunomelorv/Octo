@@ -7,6 +7,10 @@ import { usuariosService } from '../services/usuarios'
 import type { Usuario } from '../services/usuarios'
 import type { Lead, LeadWithCalls, Call } from '../types/lead'
 import WhatsAppTemplateSelector from '../components/WhatsAppTemplateSelector'
+import LeadFormModal from '../components/LeadFormModal'
+import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
+import Toast from '../components/ui/Toast'
+import type { ToastState } from '../components/ui/Toast'
 import { useAuthStore } from '../store/authStore'
 import {
   Search,
@@ -28,7 +32,9 @@ import {
   Activity,
   Award,
   Clock,
-  Tag
+  Tag,
+  UserPlus,
+  Trash2
 } from 'lucide-react'
 
 // Helper to format date strings
@@ -196,6 +202,24 @@ export default function LeadsPage() {
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
 
+  // Manual create / delete
+  const permissions = useAuthStore((state) => state.permissions)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [toast, setToast] = useState<ToastState | null>(null)
+
+  // Mirrors the Sidebar gate for the "Edição de Leads" page: explicit permission when
+  // available, role fallback while permissions are still loading.
+  const canManageLeads =
+    permissions && permissions.length > 0
+      ? permissions.includes('edicao_leads')
+      : ['master', 'head', 'administrativo'].includes(user?.role || '')
+
+  const showToast = (message: string, type: ToastState['type']) => setToast({ message, type })
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchQuery)
@@ -204,7 +228,7 @@ export default function LeadsPage() {
     return () => clearTimeout(handler)
   }, [searchQuery])
 
-  useEffect(() => {
+  const fetchKpis = () => {
     setKpisLoading(true)
     leadsService.getKpis()
       .then((data) => {
@@ -215,6 +239,10 @@ export default function LeadsPage() {
         console.error('Error fetching KPIs:', err)
         setKpisLoading(false)
       })
+  }
+
+  useEffect(() => {
+    fetchKpis()
 
     campanhasService.getCampanhas()
       .then((data) => {
@@ -288,6 +316,71 @@ export default function LeadsPage() {
     setSelectedLead(null)
   }
 
+  const handleLeadCreated = (leadName: string) => {
+    showToast(`Lead "${leadName}" cadastrado com sucesso!`, 'success')
+    setSelectedIds([])
+    fetchLeads()
+    fetchKpis()
+  }
+
+  const toggleSelected = (leadId: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(leadId) ? prev.filter((id) => id !== leadId) : [...prev, leadId]
+    )
+  }
+
+  const allOnPageSelected = leads.length > 0 && leads.every((l) => selectedIds.includes(l.id))
+
+  const toggleSelectAllOnPage = () => {
+    const pageIds = leads.map((l) => l.id)
+    setSelectedIds((prev) =>
+      allOnPageSelected
+        ? prev.filter((id) => !pageIds.includes(id))
+        : Array.from(new Set([...prev, ...pageIds]))
+    )
+  }
+
+  // Single-row delete: opens the modal scoped to one lead.
+  const askDeleteOne = (lead: Lead) => {
+    setDeleteTarget(lead)
+    setDeleteModalOpen(true)
+  }
+
+  // Bulk delete: opens the modal scoped to the current selection.
+  const askDeleteSelected = () => {
+    if (selectedIds.length === 0) return
+    setDeleteTarget(null)
+    setDeleteModalOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    const ids = deleteTarget ? [deleteTarget.id] : selectedIds
+    if (ids.length === 0) return
+
+    setIsDeleting(true)
+    try {
+      if (ids.length === 1) {
+        await leadsService.deleteLead(ids[0])
+      } else {
+        await leadsService.bulkDeleteLeads(ids)
+      }
+      showToast(
+        ids.length === 1 ? 'Lead excluído com sucesso!' : `${ids.length} leads excluídos com sucesso!`,
+        'success'
+      )
+      setDeleteModalOpen(false)
+      setDeleteTarget(null)
+      setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))
+      fetchLeads()
+      fetchKpis()
+    } catch (err: any) {
+      console.error('Erro ao excluir lead(s):', err)
+      showToast(err?.response?.data?.detail || 'Erro ao excluir lead(s).', 'error')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
 
   return (
     <div className="space-y-4 transition-colors duration-150">
@@ -299,13 +392,24 @@ export default function LeadsPage() {
             Lista completa de leads integrados, com filtros de campanhas e histórico de interações.
           </p>
         </div>
-        <button
-          onClick={fetchLeads}
-          className="flex items-center gap-1.5 bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--surface-raised)] text-sm h-8 px-3 rounded-md transition-colors duration-150"
-        >
-          <Activity className="h-4 w-4 stroke-[1.5] text-[var(--text-secondary)]" />
-          <span>Atualizar Lista</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchLeads}
+            className="flex items-center gap-1.5 bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--surface-raised)] text-sm h-8 px-3 rounded-md transition-colors duration-150"
+          >
+            <Activity className="h-4 w-4 stroke-[1.5] text-[var(--text-secondary)]" />
+            <span>Atualizar Lista</span>
+          </button>
+          {canManageLeads && (
+            <button
+              onClick={() => setCreateModalOpen(true)}
+              className="flex items-center gap-1.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-medium h-8 px-3 rounded-md transition-colors duration-150"
+            >
+              <UserPlus className="h-4 w-4 stroke-[1.5]" />
+              <span>Novo Lead</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -480,6 +584,30 @@ export default function LeadsPage() {
         </div>
       </div>
 
+      {/* Bulk selection bar */}
+      {canManageLeads && selectedIds.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-[var(--surface)] border border-[var(--accent)] rounded-lg px-4 py-2.5 transition-colors duration-150">
+          <span className="text-sm text-[var(--text-primary)]">
+            <span className="font-semibold">{selectedIds.length}</span> lead(s) selecionado(s)
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedIds([])}
+              className="h-7 px-2.5 bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--surface-raised)] text-xs rounded-md transition-colors duration-150"
+            >
+              Limpar seleção
+            </button>
+            <button
+              onClick={askDeleteSelected}
+              className="h-7 px-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-md transition-colors duration-150 inline-flex items-center gap-1.5"
+            >
+              <Trash2 className="h-3.5 w-3.5 stroke-[1.5]" />
+              <span>Excluir selecionados</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Leads Table Container */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden transition-colors duration-150">
         {loading ? (
@@ -506,24 +634,46 @@ export default function LeadsPage() {
             <p className="text-xs text-[var(--text-secondary)] mt-1 max-w-sm mx-auto">
               Nenhum registro corresponde aos filtros ou pesquisa selecionada. Tente limpar os filtros.
             </p>
-            {(selectedStatus !== 'all' || selectedCampaign !== 'all' || searchQuery) && (
-              <button
-                onClick={() => {
-                  setSelectedStatus('all')
-                  setSelectedCampaign('all')
-                  setSearchQuery('')
-                }}
-                className="mt-4 bg-transparent border border-[var(--border)] text-[var(--text-primary)] text-sm h-8 px-3 rounded-md hover:bg-[var(--surface-raised)] transition-colors duration-150"
-              >
-                Limpar Filtros
-              </button>
-            )}
+            <div className="mt-4 flex items-center justify-center gap-2">
+              {(selectedStatus !== 'all' || selectedCampaign !== 'all' || searchQuery) && (
+                <button
+                  onClick={() => {
+                    setSelectedStatus('all')
+                    setSelectedCampaign('all')
+                    setSearchQuery('')
+                  }}
+                  className="bg-transparent border border-[var(--border)] text-[var(--text-primary)] text-sm h-8 px-3 rounded-md hover:bg-[var(--surface-raised)] transition-colors duration-150"
+                >
+                  Limpar Filtros
+                </button>
+              )}
+              {canManageLeads && (
+                <button
+                  onClick={() => setCreateModalOpen(true)}
+                  className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-medium h-8 px-3 rounded-md transition-colors duration-150 inline-flex items-center gap-1.5"
+                >
+                  <UserPlus className="h-4 w-4 stroke-[1.5]" />
+                  <span>Cadastrar Lead</span>
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[var(--border)] text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">
+                  {canManageLeads && (
+                    <th className="py-2.5 pl-4 pr-0 w-8">
+                      <input
+                        type="checkbox"
+                        checked={allOnPageSelected}
+                        onChange={toggleSelectAllOnPage}
+                        aria-label="Selecionar todos os leads desta página"
+                        className="h-3.5 w-3.5 rounded border-[var(--border)] accent-[var(--accent)] cursor-pointer"
+                      />
+                    </th>
+                  )}
                   <th className="py-2.5 px-4 font-semibold">Lead</th>
                   <th className="py-2.5 px-4 font-semibold">Telefone</th>
                   <th className="py-2.5 px-4 font-semibold">Origem / Cidade</th>
@@ -548,6 +698,19 @@ export default function LeadsPage() {
                       className="border-b border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors duration-150 cursor-pointer group"
                       onClick={() => handleOpenDetails(lead.phone)}
                     >
+                      {/* Row selection */}
+                      {canManageLeads && (
+                        <td className="py-3 pl-4 pr-0" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(lead.id)}
+                            onChange={() => toggleSelected(lead.id)}
+                            aria-label={`Selecionar ${lead.full_name || 'lead'}`}
+                            className="h-3.5 w-3.5 rounded border-[var(--border)] accent-[var(--accent)] cursor-pointer"
+                          />
+                        </td>
+                      )}
+
                       {/* Name & Email */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
@@ -621,13 +784,25 @@ export default function LeadsPage() {
 
                       {/* Action */}
                       <td className="py-3 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleOpenDetails(lead.phone)}
-                          className="h-7 px-2.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-raised)] border border-transparent hover:border-[var(--border)] rounded-md transition-colors duration-150 inline-flex items-center gap-1 text-xs font-medium bg-transparent"
-                        >
-                          <Phone className="h-3.5 w-3.5 stroke-[1.5]" />
-                          <span>Ver Chamadas</span>
-                        </button>
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => handleOpenDetails(lead.phone)}
+                            className="h-7 px-2.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-raised)] border border-transparent hover:border-[var(--border)] rounded-md transition-colors duration-150 inline-flex items-center gap-1 text-xs font-medium bg-transparent"
+                          >
+                            <Phone className="h-3.5 w-3.5 stroke-[1.5]" />
+                            <span>Ver Chamadas</span>
+                          </button>
+                          {canManageLeads && (
+                            <button
+                              onClick={() => askDeleteOne(lead)}
+                              title="Excluir lead"
+                              aria-label={`Excluir ${lead.full_name || 'lead'}`}
+                              className="h-7 w-7 text-[var(--text-secondary)] hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border border-transparent hover:border-red-200 dark:hover:border-red-900/40 rounded-md transition-colors duration-150 inline-flex items-center justify-center bg-transparent"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 stroke-[1.5]" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -975,6 +1150,28 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+
+      <LeadFormModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onCreated={handleLeadCreated}
+        campaigns={campaigns}
+        consultants={consultants}
+      />
+
+      <ConfirmDeleteModal
+        open={deleteModalOpen}
+        count={deleteTarget ? 1 : selectedIds.length}
+        leadName={deleteTarget?.full_name}
+        deleting={isDeleting}
+        onCancel={() => {
+          setDeleteModalOpen(false)
+          setDeleteTarget(null)
+        }}
+        onConfirm={handleConfirmDelete}
+      />
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   )
 }

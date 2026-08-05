@@ -9,7 +9,10 @@ from app.routers.auth import get_current_user
 from app.models.user import UserResponse
 
 import app.services.negocios_service as negocios_service
+import app.services.export_service as export_service
 from app.services.database import query as db_query
+from fastapi.responses import Response
+from urllib.parse import quote
 
 
 
@@ -74,6 +77,10 @@ async def list_negocios(
 
 async def list_negocios_historico(
 
+    date_start: str | None = None,
+
+    date_end: str | None = None,
+
     current_user: UserResponse = Depends(get_current_user)
 
 ):
@@ -82,15 +89,113 @@ async def list_negocios_historico(
 
     Lists audit logs/history of deal stage and value changes.
 
+    Optional date_start/date_end (YYYY-MM-DD) filter the window in SQL, so a filtered
+    period returns every event instead of only the most recent ones.
+
     """
 
     try:
 
-        return await negocios_service.get_negocios_historico(user=current_user.model_dump())
+        return await negocios_service.get_negocios_historico(
+            user=current_user.model_dump(),
+            date_start=date_start,
+            date_end=date_end,
+        )
 
     except Exception as e:
 
         logger.exception("Erro ao listar histórico de negócios")
+
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+
+@router.get("/export-performance")
+
+async def export_performance(
+
+    date_start: str | None = None,
+
+    date_end: str | None = None,
+
+    consultant_email: str | None = None,
+
+    period_label: str | None = None,
+
+    current_user: UserResponse = Depends(get_current_user)
+
+):
+
+    """
+
+    Builds the Performance page summary as an .xlsx workbook, honouring the date window and
+    the operator filter. period_label is the human label shown on the page (e.g. "Este Mês")
+    and is written into the Resumo sheet.
+
+    """
+
+    try:
+
+        content, filename = await export_service.build_performance_workbook(
+            date_start=date_start,
+            date_end=date_end,
+            consultant_email=consultant_email,
+            period_label=period_label,
+            user=current_user.model_dump(),
+        )
+
+        return Response(
+            content=content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quote(filename)}",
+                # Lets the browser read the header through the CORS layer.
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
+
+    except ValueError as e:
+
+        raise HTTPException(status_code=400, detail=str(e))
+
+    except Exception as e:
+
+        logger.exception("Erro ao exportar performance para Excel")
+
+        raise HTTPException(status_code=500, detail="Erro ao gerar o arquivo Excel")
+
+
+@router.get("/kanban-stats")
+
+async def get_kanban_stats(
+
+    date_start: str | None = None,
+
+    date_end: str | None = None,
+
+    consultant_email: str | None = None,
+
+    current_user: UserResponse = Depends(get_current_user)
+
+):
+
+    """
+
+    Returns per-stage aggregates for the kanban columns, plus a pipeline summary.
+
+    """
+
+    try:
+
+        return await negocios_service.get_kanban_stats(
+            date_start=date_start,
+            date_end=date_end,
+            consultant_email=consultant_email,
+            user=current_user.model_dump(),
+        )
+
+    except Exception as e:
+
+        logger.exception("Erro ao obter estatísticas do kanban")
 
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 

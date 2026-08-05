@@ -1,7 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { campanhasService } from '../services/campanhas'
 import type { CampanhasResponse } from '../services/campanhas'
+import { useAuthStore } from '../store/authStore'
+import CampaignLeadsPanel from '../components/CampaignLeadsPanel'
+import Toast from '../components/ui/Toast'
+import type { ToastState } from '../components/ui/Toast'
 import {
   Megaphone,
   Search,
@@ -15,6 +19,8 @@ import {
   Percent,
   CalendarCheck,
   Clock,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import {
   Chart as ChartJS,
@@ -44,6 +50,20 @@ export default function CampanhasPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [platformFilter, setPlatformFilter] = useState('all')
+
+  // Inline lead management per campaign
+  const user = useAuthStore((state) => state.user)
+  const permissions = useAuthStore((state) => state.permissions)
+  const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
+
+  // Mirrors the Sidebar gate for the "Edição de Leads" page.
+  const canManageLeads =
+    permissions && permissions.length > 0
+      ? permissions.includes('edicao_leads')
+      : ['master', 'head', 'administrativo'].includes(user?.role || '')
+
+  const showToast = (message: string, type: ToastState['type']) => setToast({ message, type })
 
   const fetchCampaigns = () => {
     setLoading(true)
@@ -389,15 +409,28 @@ export default function CampanhasPage() {
               ) : (
                 filteredCampaigns.map((c) => {
                   const contatoRate = c.total_leads > 0 ? (c.total_chamadas / c.total_leads) * 100 : 0
-                  
+                  const isExpanded = expandedCampaign === c.campaign_id
+
                   return (
-                    <tr 
-                      key={c.campaign_id} 
+                    <Fragment key={c.campaign_id}>
+                    <tr
                       className="border-b border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors duration-150"
                     >
                       {/* Name & ID */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2.5">
+                          <button
+                            onClick={() => setExpandedCampaign(isExpanded ? null : c.campaign_id)}
+                            title={isExpanded ? 'Recolher leads' : 'Gerenciar leads desta campanha'}
+                            aria-expanded={isExpanded}
+                            className="h-7 w-7 rounded-md bg-[var(--surface-raised)] hover:bg-[var(--surface)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex-shrink-0 border border-[var(--border)] transition-colors duration-150"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="h-3.5 w-3.5 stroke-[1.5]" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5 stroke-[1.5]" />
+                            )}
+                          </button>
                           <div className="h-7 w-7 rounded-md bg-[var(--surface-raised)] flex items-center justify-center text-[var(--text-secondary)] flex-shrink-0 border border-[var(--border)]">
                             <Megaphone className="h-3.5 w-3.5" />
                           </div>
@@ -464,15 +497,47 @@ export default function CampanhasPage() {
  
                       {/* Actions */}
                       <td className="px-4 py-3.5 text-center">
-                        <button
-                          onClick={() => navigate(`/leads?campaign_id=${c.campaign_id}`)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--surface-raised)] hover:bg-[var(--surface)] border border-[var(--border)] px-2.5 py-1 rounded-md transition-all duration-150"
-                        >
-                          Ver Leads
-                          <ArrowUpRight className="h-3 w-3" />
-                        </button>
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            onClick={() => setExpandedCampaign(isExpanded ? null : c.campaign_id)}
+                            className={`inline-flex items-center gap-1 text-xs font-medium border px-2.5 py-1 rounded-md transition-all duration-150 ${
+                              isExpanded
+                                ? 'text-[var(--accent-fg)] bg-[var(--accent)] border-[var(--accent)]'
+                                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--surface-raised)] hover:bg-[var(--surface)] border-[var(--border)]'
+                            }`}
+                          >
+                            {canManageLeads ? 'Gerenciar Leads' : 'Ver Leads'}
+                            {isExpanded ? (
+                              <ChevronDown className="h-3 w-3" />
+                            ) : (
+                              <ChevronRight className="h-3 w-3" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => navigate(`/leads?campaign_id=${encodeURIComponent(c.campaign_id)}`)}
+                            title="Abrir na página de Leads"
+                            className="inline-flex items-center text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--surface-raised)] hover:bg-[var(--surface)] border border-[var(--border)] px-1.5 py-1 rounded-md transition-all duration-150"
+                          >
+                            <ArrowUpRight className="h-3 w-3" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
+
+                    {isExpanded && (
+                      <tr className="border-b border-[var(--border)]">
+                        <td colSpan={8} className="p-0">
+                          <CampaignLeadsPanel
+                            campaignId={c.campaign_id}
+                            campaignName={c.campaign_name}
+                            canManage={canManageLeads}
+                            onToast={showToast}
+                            onLeadsChanged={fetchCampaigns}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   )
                 })
               )}
@@ -480,6 +545,8 @@ export default function CampanhasPage() {
           </table>
         </div>
       </div>
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   )
 }

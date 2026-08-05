@@ -281,6 +281,34 @@ class BulkDeleteSchema(BaseModel):
     ids: list[Any] = []
     lead_ids: list[Any] = []
 
+class CreateLeadSchema(BaseModel):
+    full_name: str
+    phone: str
+    email: str | None = None
+    city: str | None = None
+    campaign_id: str | None = None
+    campaign_name: str | None = None
+    platform: str | None = None
+    lead_status: str | None = None
+    consultant_email: str | None = None
+
+# Declared before the generic "/{phone}" and "/{lead_id}" routes so it is not shadowed.
+@router.post("/", status_code=201)
+async def create_lead_endpoint(
+    payload: CreateLeadSchema,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Manually creates a new lead.
+    """
+    try:
+        return await leads_service.create_lead(payload.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Erro ao criar lead")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
 @router.put("/{lead_id}")
 async def update_lead_endpoint(
     lead_id: str,
@@ -351,6 +379,25 @@ async def bulk_delete_leads_endpoint(
         raise
     except Exception as e:
         logger.exception("Erro na exclusão em massa de leads")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+@router.delete("/{lead_id}")
+async def delete_lead_endpoint(
+    lead_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Deletes a single lead by lead_id.
+    """
+    try:
+        deleted = await leads_service.delete_lead(lead_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Lead não encontrado")
+        return {"deleted_count": 1, "message": "Lead removido com sucesso."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Erro ao excluir lead")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 @router.get("/{phone}")
