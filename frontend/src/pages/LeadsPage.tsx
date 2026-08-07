@@ -1,14 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { leadsService } from '../services/leads'
+import { huggyService } from '../services/huggy'
 import { campanhasService } from '../services/campanhas'
 import type { CampanhasResponse } from '../services/campanhas'
 import { usuariosService } from '../services/usuarios'
 import type { Usuario } from '../services/usuarios'
 import type { Lead, LeadWithCalls, Call } from '../types/lead'
-import WhatsAppTemplateSelector from '../components/WhatsAppTemplateSelector'
 import LeadFormModal from '../components/LeadFormModal'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
+import HuggyChatButton from '../components/HuggyChatButton'
+import HuggyChatPanel from '../components/HuggyChatPanel'
 import Toast from '../components/ui/Toast'
 import type { ToastState } from '../components/ui/Toast'
 import { useAuthStore } from '../store/authStore'
@@ -34,7 +36,9 @@ import {
   Clock,
   Tag,
   UserPlus,
-  Trash2
+  Trash2,
+  MessageCircle,
+  RefreshCw
 } from 'lucide-react'
 
 // Helper to format date strings
@@ -220,6 +224,15 @@ export default function LeadsPage() {
 
   const showToast = (message: string, type: ToastState['type']) => setToast({ message, type })
 
+  // Huggy
+  const [syncingHuggy, setSyncingHuggy] = useState(false)
+  // Which half of the drawer is showing. HuggyChatPanel owns the conversation itself, including
+  // its own polling — the page only decides which tab is open.
+  const [drawerTab, setDrawerTab] = useState<'conversa' | 'timeline'>('timeline')
+  const [huggyCount, setHuggyCount] = useState(0)
+  // Bumped after a manual sync so the panel refetches immediately instead of on its next poll.
+  const [huggyRefreshKey, setHuggyRefreshKey] = useState(0)
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchQuery)
@@ -314,6 +327,46 @@ export default function LeadsPage() {
   const closeDrawer = () => {
     setDrawerOpen(false)
     setSelectedLead(null)
+  }
+
+  // Phone whose starting tab has already been chosen, so the automatic choice happens once per
+  // lead. Without the guard the poll would keep dragging the user back to Conversa.
+  const autoPickedTabFor = useRef<string | null>(null)
+
+  useEffect(() => {
+    autoPickedTabFor.current = null
+    setDrawerTab('timeline')
+    setHuggyCount(0)
+  }, [selectedLead?.phone])
+
+  // Stable across renders on purpose: HuggyChatPanel takes this as a dependency of its fetch, so
+  // a new identity every render would restart its polling in a loop.
+  const handleHuggyCount = useCallback((count: number) => {
+    setHuggyCount(count)
+    const phone = selectedLead?.phone
+    if (!phone || autoPickedTabFor.current === phone) return
+    autoPickedTabFor.current = phone
+    // Open on the conversation when there is one to read; an empty chat panel would just hide
+    // the call history behind a tab for nothing.
+    if (count > 0) setDrawerTab('conversa')
+  }, [selectedLead?.phone])
+
+  const handleSyncHuggy = async (phone: string) => {
+    if (syncingHuggy) return
+    setSyncingHuggy(true)
+    try {
+      const result = await huggyService.syncLead(phone)
+      showToast(
+        result.message || `${result.synced} mensagem(ns) sincronizada(s).`,
+        'success'
+      )
+      // Nudge the chat panel instead of waiting out its poll — the user just asked for this.
+      setHuggyRefreshKey((k) => k + 1)
+    } catch (err: any) {
+      showToast(err?.response?.data?.detail || 'Erro ao sincronizar com a Huggy.', 'error')
+    } finally {
+      setSyncingHuggy(false)
+    }
   }
 
   const handleLeadCreated = (leadName: string) => {
@@ -953,21 +1006,55 @@ export default function LeadsPage() {
                         </div>
                       </div>
 
-                      {/* WhatsApp Fast Call Action */}
-                      <WhatsAppTemplateSelector
-                        phone={selectedLead.phone}
-                        leadName={selectedLead.full_name}
-                        campaignName={selectedLead.campaign_name}
-                      />
+                      <div className="flex items-center gap-2 pt-1">
+                        <HuggyChatButton phone={selectedLead.phone} />
+                        <button
+                          onClick={() => handleSyncHuggy(selectedLead.phone)}
+                          disabled={syncingHuggy}
+                          title="Busca na Huggy mensagens que não chegaram por webhook"
+                          className="h-8 px-2.5 bg-transparent border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-raised)] text-xs rounded-md transition-colors duration-150 inline-flex items-center gap-1.5 disabled:opacity-60"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 stroke-[1.5] ${syncingHuggy ? 'animate-spin' : ''}`} />
+                          <span>Sincronizar</span>
+                        </button>
+                      </div>
+
                     </div>
 
-                    {/* Calling Timeline */}
+                    {/* Conversa | Linha do Tempo. The chat panel stays mounted under the other
+                        tab so it keeps polling and can report its count — that count is what
+                        decides which tab opens first. */}
                     <div className="space-y-3">
-                      <h4 className="text-xs font-semibold uppercase tracking-widest text-[var(--text-secondary)] flex items-center gap-1.5">
-                        <Volume2 className="h-4 w-4 stroke-[1.5]" />
-                        <span>Linha do Tempo ({selectedLead.timeline?.length || selectedLead.chamadas?.length || 0})</span>
-                      </h4>
+                      <div className="flex items-center gap-1 border-b border-[var(--border)]">
+                        {([
+                          { id: 'conversa' as const, label: `Conversa${huggyCount ? ` (${huggyCount})` : ''}`, icon: MessageCircle },
+                          { id: 'timeline' as const, label: `Linha do Tempo (${selectedLead.chamadas?.length || 0})`, icon: Volume2 },
+                        ]).map((tab) => (
+                          <button
+                            key={tab.id}
+                            onClick={() => setDrawerTab(tab.id)}
+                            className={`px-3 py-2 text-xs font-semibold tracking-wide inline-flex items-center gap-1.5 border-b-2 -mb-px transition-colors duration-150 ${
+                              drawerTab === tab.id
+                                ? 'border-[var(--accent)] text-[var(--text-primary)]'
+                                : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                            }`}
+                          >
+                            <tab.icon className="h-3.5 w-3.5 stroke-[1.5]" />
+                            <span>{tab.label}</span>
+                          </button>
+                        ))}
+                      </div>
 
+                      <div className={drawerTab === 'conversa' ? '' : 'hidden'}>
+                        <HuggyChatPanel
+                          phone={selectedLead.phone}
+                          refreshKey={huggyRefreshKey}
+                          onCountChange={handleHuggyCount}
+                        />
+                      </div>
+                    </div>
+
+                    <div className={`space-y-3 ${drawerTab === 'timeline' ? '' : 'hidden'}`}>
                       {!(selectedLead.timeline?.length || selectedLead.chamadas?.length) ? (
                         <div className="text-center py-10 border border-dashed border-[var(--border)] rounded-lg bg-[var(--surface-raised)]">
                           <Phone className="h-6 w-6 text-[var(--text-tertiary)] mx-auto mb-2 stroke-[1.5]" />
@@ -999,7 +1086,8 @@ export default function LeadsPage() {
                                 {/* Bullet indicator on the line */}
                                 <div className={`absolute -left-[23px] top-1.5 h-2.5 w-2.5 rounded-full border border-[var(--border)] ${
                                   type === 'call' ? 'bg-[var(--accent)]' :
-                                  type === 'historico' ? 'bg-purple-500' : 'bg-emerald-500'
+                                  type === 'historico' ? 'bg-purple-500' :
+                                  type === 'huggy_message' ? 'bg-[#25D366]' : 'bg-emerald-500'
                                 }`}></div>
 
                                 <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 shadow-sm hover:border-[var(--border-hover)] transition-colors duration-150">
@@ -1032,6 +1120,13 @@ export default function LeadsPage() {
                                           Comentário
                                         </span>
                                       )}
+
+                                      {type === 'huggy_message' && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-[#25D366]/10 text-[#128C7E] dark:text-[#25D366] border border-[#25D366]/20 inline-flex items-center gap-1">
+                                          <MessageCircle className="h-2.5 w-2.5" />
+                                          {itemData.direction === 'in' ? 'Msg recebida' : 'Msg enviada'}
+                                        </span>
+                                      )}
                                     </div>
                                     {type === 'call' && call.duracao_segundos > 0 && (
                                       <span className="text-[10px] font-medium text-[var(--text-tertiary)] flex items-center gap-1 shrink-0">
@@ -1056,6 +1151,30 @@ export default function LeadsPage() {
                                   {type === 'comment' && (
                                     <div className="text-xs text-[var(--text-secondary)] leading-relaxed mt-1 whitespace-pre-wrap">
                                       <b>{itemData.usuario_email?.split('@')[0]}:</b> {itemData.comentario}
+                                    </div>
+                                  )}
+
+                                  {type === 'huggy_message' && (
+                                    <div className="text-xs text-[var(--text-secondary)] leading-relaxed mt-1 whitespace-pre-wrap">
+                                      <b className="text-[var(--text-primary)]">
+                                        {itemData.direction === 'in'
+                                          ? (itemData.sender_name || 'Lead')
+                                          : (itemData.sender_name || itemData.usuario_email?.split('@')[0] || 'Consultor')}
+                                        :
+                                      </b>{' '}
+                                      {itemData.body || (itemData.has_attachment ? '[anexo]' : '—')}
+                                      {/* Boolean(): has_attachment is 0|1 from SQLite, and React
+                                          renders a bare 0 as text instead of skipping it. */}
+                                      {Boolean(itemData.has_attachment) && itemData.attachment_url && (
+                                        <a
+                                          href={itemData.attachment_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="ml-1.5 text-[var(--accent)] hover:underline"
+                                        >
+                                          ver anexo
+                                        </a>
+                                      )}
                                     </div>
                                   )}
 

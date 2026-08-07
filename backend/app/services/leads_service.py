@@ -133,19 +133,25 @@ async def get_lead_by_phone(phone: str) -> dict | None:
     """
     Retrieves a single lead and all associated calls by phone.
     Joins leads and chamadas tables.
+
+    Huggy messages deliberately do NOT travel with this payload. They used to be merged into a
+    `timeline` key, which put a conversation in reverse-chronological order next to call cards
+    and left AgendaPage — which iterates the same key but has no branch for messages — drawing
+    empty cards. The drawer's Conversa tab reads them from GET /huggy/leads/{phone}/messages,
+    which carries the same consultor restriction.
     """
     # Fetch lead
     lead_rows = await query("SELECT * FROM leads WHERE phone = ? LIMIT 1", (phone,))
     if not lead_rows:
         return None
     lead = lead_rows[0]
-    
+
     # Fetch associated calls
     calls = await query(
         "SELECT * FROM chamadas WHERE telefone_normalizado = ? ORDER BY data_hora DESC",
         (phone,)
     )
-    
+
     lead_dict = dict(lead)
     lead_dict["chamadas"] = [dict(call) for call in calls]
     return lead_dict

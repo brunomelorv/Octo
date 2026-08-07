@@ -22,7 +22,12 @@ def setup_test_env(monkeypatch):
     
     from app.main import limiter
     limiter.enabled = False
-    
+
+    # The huggy router owns its own Limiter instance (the webhook is rate limited separately),
+    # so disabling only main's would still throttle the webhook tests.
+    from app.routers.huggy import limiter as huggy_limiter
+    huggy_limiter.enabled = False
+
     yield
     
     temp_dir.cleanup()
@@ -32,8 +37,12 @@ async def app_setup():
     """Initializes the database schema required for the tests."""
     from app.services.auth_service import init_users_table_and_migrate
     from app.services.database import query
-    
+    from app.services.huggy_service import init_huggy_tables
+    from app.services.settings_service import init_settings_table
+
     await init_users_table_and_migrate()
+    await init_settings_table()
+    await init_huggy_tables()
     await query("""
         CREATE TABLE IF NOT EXISTS negocios (
             lead_id TEXT PRIMARY KEY,
@@ -45,6 +54,19 @@ async def app_setup():
             tags TEXT,
             loss_reason TEXT,
             loss_comment TEXT
+        );
+    """)
+    # The Huggy tests exercise real lead matching instead of mocking the service, so the leads
+    # table has to exist. Mirrors the schema created by Database/build_database.py.
+    await query("""
+        CREATE TABLE IF NOT EXISTS leads (
+            id TEXT PRIMARY KEY,
+            created_time TEXT,
+            ad_id TEXT, ad_name TEXT, adset_id TEXT, adset_name TEXT,
+            campaign_id TEXT, campaign_name TEXT, form_id TEXT, form_name TEXT,
+            is_organic INTEGER, platform TEXT,
+            full_name TEXT, phone TEXT, city TEXT, email TEXT,
+            lead_status TEXT, source_file TEXT
         );
     """)
     yield

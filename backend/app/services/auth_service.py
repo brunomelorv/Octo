@@ -125,6 +125,13 @@ async def init_users_table_and_migrate() -> None:
         except Exception:
             pass
 
+        # Maps a CRM user to their Huggy agent. TEXT on purpose: the Huggy API returns ids as
+        # both numbers and strings, and every other Huggy id in this schema is TEXT.
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN huggy_agent_id TEXT;")
+        except Exception:
+            pass
+
         # Migrate legacy roles
         await db.execute("UPDATE users SET role = 'master' WHERE role = 'admin'")
         await db.execute("UPDATE users SET role = 'consultor' WHERE role = 'user'")

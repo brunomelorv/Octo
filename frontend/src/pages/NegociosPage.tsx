@@ -7,7 +7,7 @@ import { campanhasService } from '../services/campanhas'
 import type { CampanhasResponse } from '../services/campanhas'
 import type { LeadWithCalls, Call } from '../types/lead'
 import api from '../services/api'
-import WhatsAppTemplateSelector from '../components/WhatsAppTemplateSelector'
+import HuggyChatButton from '../components/HuggyChatButton'
 import { leadsService } from '../services/leads'
 import { agendaService } from '../services/agenda'
 import {
@@ -998,11 +998,9 @@ export default function NegociosPage() {
                         </div>
                       </div>
 
-                      <WhatsAppTemplateSelector
-                        phone={selectedLead.phone}
-                        leadName={selectedLead.full_name}
-                        campaignName={selectedLead.campaign_name}
-                      />
+                      <div className="pt-1">
+                        <HuggyChatButton phone={selectedLead.phone} />
+                      </div>
                     </div>
 
                     {/* Tag System in Drawer */}

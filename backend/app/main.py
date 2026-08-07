@@ -16,6 +16,7 @@ from app.routers.agenda import router as agenda_router
 from app.routers.settings import router as settings_router
 from app.routers.upload import router as upload_router
 from app.routers.bug_reports import router as bug_reports_router
+from app.routers.huggy import router as huggy_router
 
 # Configure logging
 logging.basicConfig(
@@ -36,9 +37,11 @@ async def lifespan(app: FastAPI):
         from app.services.auth_service import init_users_table_and_migrate
         from app.services.settings_service import init_settings_table
         from app.services.bug_report_service import init_bug_reports_table
+        from app.services.huggy_service import init_huggy_tables
         await init_users_table_and_migrate()
         await init_settings_table()
         await init_bug_reports_table()
+        await init_huggy_tables()
 
         await query("""
         CREATE TABLE IF NOT EXISTS negocios (
@@ -223,3 +226,4 @@ app.include_router(agenda_router, prefix="/api/agenda", tags=["agenda"])
 app.include_router(settings_router, prefix="/api/settings", tags=["settings"])
 app.include_router(upload_router, prefix="/api/upload", tags=["upload"])
 app.include_router(bug_reports_router, prefix="/api", tags=["bug-reports"])
+app.include_router(huggy_router, prefix="/api/huggy", tags=["huggy"])

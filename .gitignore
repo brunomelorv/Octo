@@ -160,3 +160,12 @@ yarn-error.log*
 *.db
 *.sqlite
 
+
+# Exports de leads da Meta e CSVs gerados para importacao.
+# Repositorio publico: estes arquivos carregam nome, e-mail e telefone de
+# pessoas reais e nao podem ser commitados.
+*.xlsx
+*.xls
+/leads_*.csv
+/Forms*.csv
+/Franquias*.csv

@@ -5,7 +5,7 @@ import { leadsService } from '../services/leads'
 import { agendaService } from '../services/agenda'
 import { negociosService } from '../services/negocios'
 import type { AgendaItem } from '../services/agenda'
-import WhatsAppTemplateSelector from '../components/WhatsAppTemplateSelector'
+import HuggyChatButton from '../components/HuggyChatButton'
 import { useAuthStore } from '../store/authStore'
 
 const parseComment = (text: string) => {
@@ -484,12 +484,12 @@ export default function AgendaPage() {
                 </div>
 
                 {activeContactPhones.includes(item.phone) && (
-                  <WhatsAppTemplateSelector
-                    phone={item.phone}
-                    leadName={item.lead_name}
-                    eventTime={item.time}
-                    eventType={item.event_type}
-                  />
+                  <>
+                    {/* compact: a agenda é uma lista densa */}
+                    <div className="pt-1">
+                      <HuggyChatButton phone={item.phone} compact />
+                    </div>
+                  </>
                 )}
 
                 {/* Complete Inline Form */}
